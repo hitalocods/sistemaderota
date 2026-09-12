@@ -12,11 +12,11 @@ export async function GET(req: Request) {
     select
       r.id, r.data, r.quantidade, r.status, r.receita, r.custo,
       r.entregue_em,
-      l.id as local_id, l.nome as local_nome,
-      m.id as motoboy_id, m.nome as motoboy_nome
+      l.id as local_id, coalesce(l.nome, 'Local arquivado') as local_nome, l.endereco as local_endereco,
+      m.id as motoboy_id, coalesce(m.nome, 'Motoboy arquivado') as motoboy_nome, m.whatsapp as motoboy_whatsapp
     from rotas r
-    join locais l on l.id = r.local_id
-    join motoboys m on m.id = r.motoboy_id
+    left join locais l on l.id = r.local_id
+    left join motoboys m on m.id = r.motoboy_id
     where (${de}::date is null or r.data >= ${de}::date)
       and (${ate}::date is null or r.data <= ${ate}::date)
       and (${motoboyId}::int is null or r.motoboy_id = ${motoboyId}::int)

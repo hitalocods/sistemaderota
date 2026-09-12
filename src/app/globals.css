@@ -16,12 +16,17 @@
   box-sizing: border-box;
 }
 
-body {
+html, body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
   font-family: 'Inter', sans-serif;
   -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+}
+
+input, select, textarea {
+  font-size: 16px; /* Evita que navegadores móveis (Safari iOS) deem zoom automático na tela ao focar em inputs */
 }
 
 h1, h2, h3, .slab {
@@ -227,6 +232,49 @@ nav.side button.active {
   .cards {
     grid-template-columns: 1fr;
   }
+}
+
+.cards-5 {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+@media (max-width: 1080px) {
+  .cards-5 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .cards-5 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 420px) {
+  .cards-5 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.btn-whatsapp-sm {
+  background: #25D366;
+  color: #fff;
+  border: none;
+  font-family: 'Inter', sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 5px 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 3px;
+  transition: background 0.15s ease;
+  text-decoration: none;
+}
+
+.btn-whatsapp-sm:hover {
+  background: #1eb857;
 }
 
 .card {

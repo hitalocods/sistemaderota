@@ -6,7 +6,7 @@ export async function PUT(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  const { nome, login, senha, valor_rota, ativo } = await req.json();
+  const { nome, login, senha, valor_rota, ativo, whatsapp } = await req.json();
   const senha_hash = senha ? await bcrypt.hash(senha, 10) : null;
 
   const [motoboy] = await sql`
@@ -15,9 +15,10 @@ export async function PUT(
       login = coalesce(${login}, login),
       senha_hash = coalesce(${senha_hash}, senha_hash),
       valor_rota = coalesce(${valor_rota}, valor_rota),
+      whatsapp = coalesce(${whatsapp}, whatsapp),
       ativo = coalesce(${ativo}, ativo)
     where id = ${params.id}
-    returning id, nome, login, valor_rota, ativo, criado_em
+    returning id, nome, login, whatsapp, valor_rota, ativo, criado_em
   `;
 
   if (!motoboy) {

@@ -17,6 +17,7 @@ create table if not exists motoboys (
   login         text not null unique,   -- criado na IDE / seed, sem cadastro público
   senha_hash    text not null,
   valor_rota    numeric(10,2) not null default 0, -- quanto ele recebe por rota feita (custo)
+  whatsapp      text,                             -- contato de whatsapp para envio direto de rotas
   ativo         boolean not null default true,
   excluido      boolean not null default false,
   criado_em     timestamptz not null default now()

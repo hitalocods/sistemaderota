@@ -4,7 +4,7 @@ import { sql } from "@/lib/db";
 
 export async function GET() {
   const motoboys = await sql`
-    select id, nome, login, valor_rota, ativo, criado_em
+    select id, nome, login, whatsapp, valor_rota, ativo, criado_em
     from motoboys
     where coalesce(excluido, false) = false
     order by nome asc
@@ -13,7 +13,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { nome, login, senha, valor_rota } = await req.json();
+  const { nome, login, senha, valor_rota, whatsapp } = await req.json();
 
   if (!nome || !login || !senha || valor_rota === undefined) {
     return NextResponse.json(
@@ -25,9 +25,9 @@ export async function POST(req: Request) {
   const senha_hash = await bcrypt.hash(senha, 10);
 
   const [motoboy] = await sql`
-    insert into motoboys (nome, login, senha_hash, valor_rota)
-    values (${nome}, ${login}, ${senha_hash}, ${valor_rota})
-    returning id, nome, login, valor_rota, ativo, criado_em
+    insert into motoboys (nome, login, senha_hash, valor_rota, whatsapp)
+    values (${nome}, ${login}, ${senha_hash}, ${valor_rota}, ${whatsapp || null})
+    returning id, nome, login, whatsapp, valor_rota, ativo, criado_em
   `;
 
   return NextResponse.json(motoboy, { status: 201 });

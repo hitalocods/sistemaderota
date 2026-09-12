@@ -23,6 +23,7 @@ interface Motoboy {
   id: number;
   nome: string;
   login: string;
+  whatsapp?: string | null;
   valor_rota: string | number;
   ativo: boolean;
 }
@@ -37,8 +38,10 @@ interface Rota {
   entregue_em: string | null;
   local_id: number;
   local_nome: string;
+  local_endereco?: string | null;
   motoboy_id: number;
   motoboy_nome: string;
+  motoboy_whatsapp?: string | null;
 }
 
 interface RotaDetalhada {
@@ -91,8 +94,7 @@ export default function Home() {
   const [authChecking, setAuthChecking] = useState(true);
   const [usuario, setUsuario] = useState<Usuario | null>(null);
 
-  // Formulário de Login
-  const [loginTipo, setLoginTipo] = useState<"admin" | "motoboy">("admin");
+  // Formulário de Login Unificado
   const [loginUsuario, setLoginUsuario] = useState("");
   const [loginSenha, setLoginSenha] = useState("");
   const [loginEntrando, setLoginEntrando] = useState(false);
@@ -101,7 +103,7 @@ export default function Home() {
   const [currentView, setCurrentView] = useState<"admin" | "moto">("admin");
   const [adminTab, setAdminTab] = useState<"geral" | "locais" | "motoboys" | "relatorios">("geral");
 
-  // Filtro de Data para a listagem de Rotas
+  // Filtro de Data para a listagem de Rotas (Visão Geral)
   const [dataFiltro, setDataFiltro] = useState<string>(() => toLocalDateStr());
 
   // Dados do Sistema
@@ -112,8 +114,14 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [lastSync, setLastSync] = useState("");
 
-  // Filtro de Relatório
-  const [periodoFiltro, setPeriodoFiltro] = useState<"dia" | "semana" | "mes" | "tudo">("semana");
+  // Filtros Avançados de Relatório (Hoje, Escolher Dia, Este Mês, Escolher Mês, Ano, Tudo)
+  const [relTipoFiltro, setRelTipoFiltro] = useState<
+    "hoje" | "dia_especifico" | "este_mes" | "mes_especifico" | "ano" | "tudo"
+  >("hoje");
+  const [relDiaEscolhido, setRelDiaEscolhido] = useState<string>(() => toLocalDateStr());
+  const [relMesEscolhido, setRelMesEscolhido] = useState<string>(() => toLocalDateStr().slice(0, 7));
+  const [relAnoEscolhido, setRelAnoEscolhido] = useState<string>(() => String(new Date().getFullYear()));
+  const [relPeriodoDescricao, setRelPeriodoDescricao] = useState<string>("Hoje");
   const [motoboyExpandidoId, setMotoboyExpandidoId] = useState<number | null>(null);
 
 
@@ -148,6 +156,7 @@ export default function Home() {
   const [novoMotoLogin, setNovoMotoLogin] = useState("");
   const [novoMotoSenha, setNovoMotoSenha] = useState("");
   const [novoMotoValor, setNovoMotoValor] = useState("6.00");
+  const [novoMotoWhatsapp, setNovoMotoWhatsapp] = useState("");
 
   // Simulação motoboy (usado apenas se admin alternar na demo)
   const [adminSimulatedMotoId, setAdminSimulatedMotoId] = useState<number | null>(null);
@@ -187,20 +196,22 @@ export default function Home() {
     verificarSessao();
   }, []);
 
-  // Login
+  // Login Unificado
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
+    if (!loginSenha) {
+      showToast("Por favor, digite sua senha de acesso");
+      return;
+    }
     try {
       setLoginEntrando(true);
-      const body =
-        loginTipo === "admin"
-          ? { tipo: "admin", senha: loginSenha }
-          : { tipo: "motoboy", login: loginUsuario, senha: loginSenha };
-
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          login: loginUsuario.trim(),
+          senha: loginSenha.trim(),
+        }),
       });
 
       const data = await res.json();
@@ -296,28 +307,54 @@ export default function Home() {
     }
   }
 
-  async function carregarRelatorio(filtro: "dia" | "semana" | "mes" | "tudo" = periodoFiltro) {
+  async function carregarRelatorioComFiltro(
+    tipo = relTipoFiltro,
+    dia = relDiaEscolhido,
+    mes = relMesEscolhido,
+    ano = relAnoEscolhido
+  ) {
     if (!usuario) return;
     try {
-      const hoje = new Date();
       let de = "";
       let ate = "";
+      let desc = "";
 
-      if (filtro === "dia") {
-        de = toLocalDateStr(hoje);
-        ate = toLocalDateStr(hoje);
-      } else if (filtro === "semana") {
-        const d = new Date();
-        d.setDate(d.getDate() - 7);
-        de = toLocalDateStr(d);
-        ate = toLocalDateStr(hoje);
-      } else if (filtro === "mes") {
-        const d = new Date();
-        d.setDate(d.getDate() - 30);
-        de = toLocalDateStr(d);
-        ate = toLocalDateStr(hoje);
+      if (tipo === "hoje") {
+        const hoje = toLocalDateStr();
+        de = hoje;
+        ate = hoje;
+        desc = `Hoje (${hoje.split("-").reverse().join("/")})`;
+      } else if (tipo === "dia_especifico") {
+        const d = dia || toLocalDateStr();
+        de = d;
+        ate = d;
+        desc = `Dia ${d.split("-").reverse().join("/")}`;
+      } else if (tipo === "este_mes") {
+        const agora = new Date();
+        const y = agora.getFullYear();
+        const m = agora.getMonth() + 1;
+        const ult = new Date(y, m, 0).getDate();
+        de = `${y}-${String(m).padStart(2, "0")}-01`;
+        ate = `${y}-${String(m).padStart(2, "0")}-${String(ult).padStart(2, "0")}`;
+        desc = `Este Mês (${String(m).padStart(2, "0")}/${y})`;
+      } else if (tipo === "mes_especifico") {
+        const [y, m] = (mes || toLocalDateStr().slice(0, 7)).split("-").map(Number);
+        const ult = new Date(y, m, 0).getDate();
+        de = `${y}-${String(m).padStart(2, "0")}-01`;
+        ate = `${y}-${String(m).padStart(2, "0")}-${String(ult).padStart(2, "0")}`;
+        desc = `Mês ${String(m).padStart(2, "0")}/${y}`;
+      } else if (tipo === "ano") {
+        const y = ano || String(new Date().getFullYear());
+        de = `${y}-01-01`;
+        ate = `${y}-12-31`;
+        desc = `Ano ${y}`;
+      } else if (tipo === "tudo") {
+        de = "";
+        ate = "";
+        desc = "Todo o Histórico";
       }
 
+      setRelPeriodoDescricao(desc);
       const url = de && ate ? `/api/relatorios?de=${de}&ate=${ate}` : "/api/relatorios";
       const res = await fetch(url);
       const data = await res.json();
@@ -340,9 +377,9 @@ export default function Home() {
 
   useEffect(() => {
     if (usuario) {
-      carregarRelatorio(periodoFiltro);
+      carregarRelatorioComFiltro();
     }
-  }, [periodoFiltro, rotas, usuario]);
+  }, [relTipoFiltro, relDiaEscolhido, relMesEscolhido, relAnoEscolhido, rotas, usuario]);
 
   // Ações de Rotas
   async function handleCriarRota(e: React.FormEvent) {
@@ -468,6 +505,7 @@ export default function Home() {
           login: novoMotoLogin,
           senha: novoMotoSenha,
           valor_rota: parseFloat(novoMotoValor),
+          whatsapp: novoMotoWhatsapp.trim() || null,
         }),
       });
 
@@ -476,12 +514,34 @@ export default function Home() {
         setNovoMotoNome("");
         setNovoMotoLogin("");
         setNovoMotoSenha("");
+        setNovoMotoWhatsapp("");
         setModalMotoboyAberto(false);
         carregarTudo(true);
       }
     } catch {
       showToast("Erro de conexão");
     }
+  }
+
+  // Encaminhar detalhes da rota via WhatsApp para o motoboy
+  function handleEnviarRotaWhatsApp(r: Rota) {
+    const phoneRaw = r.motoboy_whatsapp ? r.motoboy_whatsapp.replace(/\D/g, "") : "";
+    const phone = phoneRaw ? (phoneRaw.startsWith("55") ? phoneRaw : `55${phoneRaw}`) : "";
+
+    let msg = `🍱 *QUENTINHAS DA RÊ — NOVA ROTA* 🛵\n\n`;
+    msg += `Olá *${r.motoboy_nome}*! Seguem os dados para entrega:\n\n`;
+    msg += `📍 *Destino:* ${r.local_nome}\n`;
+    if (r.local_endereco) msg += `🏠 *Endereço:* ${r.local_endereco}\n`;
+    msg += `📦 *Carga:* ${r.quantidade} quentinhas\n`;
+    msg += `💰 *Seu frete nesta rota:* R$ ${Number(r.custo).toFixed(2)}\n`;
+    msg += `📅 *Data:* ${r.data}\n\n`;
+    msg += `Por favor, confirme ao sair e marque como entregue no sistema ao finalizar! 👍`;
+
+    const url = phone
+      ? `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+
+    window.open(url, "_blank");
   }
 
   async function handleExcluirMotoboy(id: number) {
@@ -604,56 +664,36 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="login-type-toggle">
-            <button
-              type="button"
-              className={loginTipo === "admin" ? "active" : ""}
-              onClick={() => setLoginTipo("admin")}
-            >
-              👩‍🍳 Dona Rê (Admin)
-            </button>
-            <button
-              type="button"
-              className={loginTipo === "motoboy" ? "active" : ""}
-              onClick={() => setLoginTipo("motoboy")}
-            >
-              🛵 Entregador (Motoboy)
-            </button>
-          </div>
-
-          <form onSubmit={handleLogin}>
-            {loginTipo === "motoboy" && (
-              <div className="field">
-                <label>Seu Login de Acesso</label>
-                <input
-                  type="text"
-                  placeholder="Ex: junior"
-                  value={loginUsuario}
-                  onChange={(e) => setLoginUsuario(e.target.value)}
-                  required
-                  autoFocus
-                />
-              </div>
-            )}
+          <form onSubmit={handleLogin} style={{ marginTop: 16 }}>
+            <div className="field">
+              <label>
+                Usuário / Login <span style={{ fontWeight: 400, color: "#7a7364" }}>(opcional para entregadores)</span>
+              </label>
+              <input
+                type="text"
+                placeholder="Ex: admin ou seu login"
+                value={loginUsuario}
+                onChange={(e) => setLoginUsuario(e.target.value)}
+              />
+            </div>
 
             <div className="field">
-              <label>{loginTipo === "admin" ? "Senha de Administradora" : "Sua Senha"}</label>
+              <label>Senha de Acesso</label>
               <input
                 type="password"
-                placeholder="Digite sua senha"
+                placeholder="Digite sua senha cadastrada"
                 value={loginSenha}
                 onChange={(e) => setLoginSenha(e.target.value)}
                 required
-                autoFocus={loginTipo === "admin"}
+                autoFocus
               />
-              {loginTipo === "admin" && (
-                <span style={{ fontSize: 11.5, color: "#7a7364", marginTop: 4, display: "block" }}>
-                  Dica: a senha padrão inicial é <code>re123</code>
-                </span>
-              )}
+              <span style={{ fontSize: 11.5, color: "#7a7364", marginTop: 5, display: "block", lineHeight: 1.4 }}>
+                👩‍🍳 <strong>Dona:</strong> acesse com sua senha (padrão <code>re123</code>).<br />
+                🛵 <strong>Entregadores:</strong> podem entrar apenas digitando a sua senha!
+              </span>
             </div>
 
-            <button className="btn" type="submit" style={{ width: "100%", marginTop: 8 }} disabled={loginEntrando}>
+            <button className="btn" type="submit" style={{ width: "100%", marginTop: 10 }} disabled={loginEntrando}>
               {loginEntrando ? "Entrando..." : "Entrar no Sistema"}
             </button>
           </form>
@@ -899,23 +939,33 @@ export default function Home() {
                                       </span>
                                     </td>
                                     <td style={{ textAlign: "center", whiteSpace: "nowrap" }}>
-                                      {rota.status === "pendente" ? (
+                                      <div style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>
                                         <button
-                                          className="btn-secondary"
-                                          style={{ padding: "4px 8px", fontSize: 11 }}
-                                          onClick={() => handleAlterarStatusRota(rota.id, "entregue")}
+                                          type="button"
+                                          className="btn-whatsapp-sm"
+                                          title="Encaminhar detalhes da rota para o WhatsApp do motoboy"
+                                          onClick={() => handleEnviarRotaWhatsApp(rota)}
                                         >
-                                          ✓ Entregue
+                                          <span>💬</span> Zap
                                         </button>
-                                      ) : rota.status === "entregue" ? (
-                                        <button
-                                          className="btn-secondary"
-                                          style={{ padding: "4px 8px", fontSize: 11 }}
-                                          onClick={() => handleAlterarStatusRota(rota.id, "pendente")}
-                                        >
-                                          ↺ Reabrir
-                                        </button>
-                                      ) : null}
+                                        {rota.status === "pendente" ? (
+                                          <button
+                                            className="btn-secondary"
+                                            style={{ padding: "4px 8px", fontSize: 11 }}
+                                            onClick={() => handleAlterarStatusRota(rota.id, "entregue")}
+                                          >
+                                            ✓ Entregue
+                                          </button>
+                                        ) : rota.status === "entregue" ? (
+                                          <button
+                                            className="btn-secondary"
+                                            style={{ padding: "4px 8px", fontSize: 11 }}
+                                            onClick={() => handleAlterarStatusRota(rota.id, "pendente")}
+                                          >
+                                            ↺ Reabrir
+                                          </button>
+                                        ) : null}
+                                      </div>
                                     </td>
                                   </tr>
                                 ))
@@ -988,25 +1038,34 @@ export default function Home() {
                     {/* Resumo Rápido de Relatórios */}
                     <div>
                       <div className="panel-title">
-                        <span>Relatório semanal</span>
+                        <span>Resumo Financeiro ({relPeriodoDescricao})</span>
                         <div className="filters" style={{ margin: 0 }}>
                           <button
-                            className={periodoFiltro === "dia" ? "active" : ""}
-                            onClick={() => setPeriodoFiltro("dia")}
+                            className={relTipoFiltro === "hoje" ? "active" : ""}
+                            onClick={() => {
+                              setRelTipoFiltro("hoje");
+                              carregarRelatorioComFiltro("hoje");
+                            }}
                           >
-                            Dia
+                            Hoje
                           </button>
                           <button
-                            className={periodoFiltro === "semana" ? "active" : ""}
-                            onClick={() => setPeriodoFiltro("semana")}
+                            className={relTipoFiltro === "este_mes" ? "active" : ""}
+                            onClick={() => {
+                              setRelTipoFiltro("este_mes");
+                              carregarRelatorioComFiltro("este_mes");
+                            }}
                           >
-                            Semana
+                            Este Mês
                           </button>
                           <button
-                            className={periodoFiltro === "mes" ? "active" : ""}
-                            onClick={() => setPeriodoFiltro("mes")}
+                            className={relTipoFiltro === "tudo" ? "active" : ""}
+                            onClick={() => {
+                              setRelTipoFiltro("tudo");
+                              carregarRelatorioComFiltro("tudo");
+                            }}
                           >
-                            Mês
+                            Tudo
                           </button>
                         </div>
                       </div>
@@ -1157,6 +1216,7 @@ export default function Home() {
                           <tr>
                             <th>Nome</th>
                             <th>Login</th>
+                            <th>WhatsApp</th>
                             <th className="num">Valor por rota</th>
                             <th>Status</th>
                             <th style={{ textAlign: "right" }}>Ações</th>
@@ -1169,6 +1229,7 @@ export default function Home() {
                                 <strong>{moto.nome}</strong>
                               </td>
                               <td className="mono">{moto.login}</td>
+                              <td style={{ color: "#3d392e" }}>{moto.whatsapp || "—"}</td>
                               <td className="num">
                                 R$ {Number(moto.valor_rota).toFixed(2)}
                               </td>
@@ -1226,43 +1287,63 @@ export default function Home() {
                       </div>
 
                       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                        <div className="filters" style={{ margin: 0 }}>
+                        <div className="filters" style={{ margin: 0, flexWrap: "wrap", gap: 6 }}>
                           <button
                             type="button"
-                            className={periodoFiltro === "dia" ? "active" : ""}
+                            className={relTipoFiltro === "hoje" ? "active" : ""}
                             onClick={() => {
-                              setPeriodoFiltro("dia");
-                              carregarRelatorio("dia");
+                              setRelTipoFiltro("hoje");
+                              carregarRelatorioComFiltro("hoje");
                             }}
                           >
                             Hoje
                           </button>
                           <button
                             type="button"
-                            className={periodoFiltro === "semana" ? "active" : ""}
+                            className={relTipoFiltro === "dia_especifico" ? "active" : ""}
                             onClick={() => {
-                              setPeriodoFiltro("semana");
-                              carregarRelatorio("semana");
+                              setRelTipoFiltro("dia_especifico");
+                              carregarRelatorioComFiltro("dia_especifico", relDiaEscolhido);
                             }}
                           >
-                            Últimos 7 dias
+                            Escolher Dia
                           </button>
                           <button
                             type="button"
-                            className={periodoFiltro === "mes" ? "active" : ""}
+                            className={relTipoFiltro === "este_mes" ? "active" : ""}
                             onClick={() => {
-                              setPeriodoFiltro("mes");
-                              carregarRelatorio("mes");
+                              setRelTipoFiltro("este_mes");
+                              carregarRelatorioComFiltro("este_mes");
                             }}
                           >
-                            Últimos 30 dias
+                            Este Mês
                           </button>
                           <button
                             type="button"
-                            className={periodoFiltro === "tudo" ? "active" : ""}
+                            className={relTipoFiltro === "mes_especifico" ? "active" : ""}
                             onClick={() => {
-                              setPeriodoFiltro("tudo");
-                              carregarRelatorio("tudo");
+                              setRelTipoFiltro("mes_especifico");
+                              carregarRelatorioComFiltro("mes_especifico", undefined, relMesEscolhido);
+                            }}
+                          >
+                            Escolher Mês
+                          </button>
+                          <button
+                            type="button"
+                            className={relTipoFiltro === "ano" ? "active" : ""}
+                            onClick={() => {
+                              setRelTipoFiltro("ano");
+                              carregarRelatorioComFiltro("ano", undefined, undefined, relAnoEscolhido);
+                            }}
+                          >
+                            Ano ({relAnoEscolhido})
+                          </button>
+                          <button
+                            type="button"
+                            className={relTipoFiltro === "tudo" ? "active" : ""}
+                            onClick={() => {
+                              setRelTipoFiltro("tudo");
+                              carregarRelatorioComFiltro("tudo");
                             }}
                           >
                             Todo o Histórico
@@ -1276,8 +1357,107 @@ export default function Home() {
                       </div>
                     </div>
 
+                    {/* Controles Dinâmicos quando o usuário escolhe Dia ou Mês específico */}
+                    <div
+                      style={{
+                        background: "#F7F3EA",
+                        border: "1px solid var(--line)",
+                        padding: "10px 14px",
+                        marginBottom: 18,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        flexWrap: "wrap",
+                        gap: 12,
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 13, color: "#6b6558" }}>Período filtrado:</span>
+                        <span
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 700,
+                            color: "var(--ink)",
+                            background: "var(--paper-alt)",
+                            padding: "4px 10px",
+                            borderRadius: 4,
+                            border: "1px solid var(--line)",
+                          }}
+                        >
+                          {relPeriodoDescricao}
+                        </span>
+
+                        {relTipoFiltro === "dia_especifico" && (
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                            <label style={{ fontSize: 12, color: "#6b6558" }}>Selecionar data:</label>
+                            <input
+                              type="date"
+                              value={relDiaEscolhido}
+                              onChange={(e) => {
+                                setRelDiaEscolhido(e.target.value);
+                                carregarRelatorioComFiltro("dia_especifico", e.target.value);
+                              }}
+                              style={{
+                                padding: "4px 8px",
+                                border: "1px solid var(--line)",
+                                background: "#fff",
+                                fontSize: 13,
+                              }}
+                            />
+                          </div>
+                        )}
+
+                        {relTipoFiltro === "mes_especifico" && (
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                            <label style={{ fontSize: 12, color: "#6b6558" }}>Selecionar mês:</label>
+                            <input
+                              type="month"
+                              value={relMesEscolhido}
+                              onChange={(e) => {
+                                setRelMesEscolhido(e.target.value);
+                                carregarRelatorioComFiltro("mes_especifico", undefined, e.target.value);
+                              }}
+                              style={{
+                                padding: "4px 8px",
+                                border: "1px solid var(--line)",
+                                background: "#fff",
+                                fontSize: 13,
+                              }}
+                            />
+                          </div>
+                        )}
+
+                        {relTipoFiltro === "ano" && (
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                            <label style={{ fontSize: 12, color: "#6b6558" }}>Ano:</label>
+                            <select
+                              value={relAnoEscolhido}
+                              onChange={(e) => {
+                                setRelAnoEscolhido(e.target.value);
+                                carregarRelatorioComFiltro("ano", undefined, undefined, e.target.value);
+                              }}
+                              style={{
+                                padding: "4px 8px",
+                                border: "1px solid var(--line)",
+                                background: "#fff",
+                                fontSize: 13,
+                              }}
+                            >
+                              <option value="2026">2026</option>
+                              <option value="2025">2025</option>
+                              <option value="2024">2024</option>
+                            </select>
+                          </div>
+                        )}
+                      </div>
+
+                      <span style={{ fontSize: 11.5, color: "#7a7364" }}>
+                        Valores calculados em tempo real
+                      </span>
+                    </div>
+
                     {/* Cards de Métricas Operacionais e Financeiras */}
-                    <div className="cards" style={{ gridTemplateColumns: "repeat(5, 1fr)" }}>
+                    <div className="cards cards-5">
                       <div className="card">
                         <div className="label">Quentinhas entregues</div>
                         <div className="value">
@@ -1757,6 +1937,18 @@ export default function Home() {
                   onChange={(e) => setNovoMotoSenha(e.target.value)}
                   required
                 />
+              </div>
+              <div className="field">
+                <label>WhatsApp / Celular (com DDD)</label>
+                <input
+                  type="tel"
+                  placeholder="Ex: 86999998888"
+                  value={novoMotoWhatsapp}
+                  onChange={(e) => setNovoMotoWhatsapp(e.target.value)}
+                />
+                <span style={{ fontSize: 11, color: "#6b6558" }}>
+                  Permite encaminhar detalhes de entrega direto no WhatsApp dele com 1 clique.
+                </span>
               </div>
               <div className="field">
                 <label>Valor pago por rota (R$)</label>
