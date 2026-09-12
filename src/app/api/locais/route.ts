@@ -3,7 +3,9 @@ import { sql } from "@/lib/db";
 
 export async function GET() {
   const locais = await sql`
-    select * from locais order by nome asc
+    select * from locais
+    where coalesce(excluido, false) = false
+    order by nome asc
   `;
   return NextResponse.json(locais);
 }

@@ -5,7 +5,9 @@ import { sql } from "@/lib/db";
 export async function GET() {
   const motoboys = await sql`
     select id, nome, login, valor_rota, ativo, criado_em
-    from motoboys order by nome asc
+    from motoboys
+    where coalesce(excluido, false) = false
+    order by nome asc
   `;
   return NextResponse.json(motoboys);
 }

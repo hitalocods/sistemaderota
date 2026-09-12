@@ -7,6 +7,7 @@ create table if not exists locais (
   contato       text,
   valor_unidade numeric(10,2) not null default 0, -- valor cobrado por quentinha nesse local (receita)
   ativo         boolean not null default true,
+  excluido      boolean not null default false,
   criado_em     timestamptz not null default now()
 );
 
@@ -17,6 +18,7 @@ create table if not exists motoboys (
   senha_hash    text not null,
   valor_rota    numeric(10,2) not null default 0, -- quanto ele recebe por rota feita (custo)
   ativo         boolean not null default true,
+  excluido      boolean not null default false,
   criado_em     timestamptz not null default now()
 );
 

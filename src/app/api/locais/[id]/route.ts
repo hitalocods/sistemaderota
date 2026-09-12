@@ -25,41 +25,61 @@ export async function PUT(
   return NextResponse.json(local);
 }
 
-// Excluir local: se tiver rotas associadas, apenas desativa (soft delete) para manter integridade; se não tiver, exclui do banco
+// Excluir local:
+// 1. Se estiver ativo -> inativa (status INATIVO)
+// 2. Se já estiver inativo -> remove da visualização/página (mantendo histórico financeiro se houver rotas)
 export async function DELETE(
   _req: Request,
   { params }: { params: { id: string } }
 ) {
-  // Verificar se tem rotas vinculadas
-  const [rotasCount] = await sql`
-    select count(*) as count from rotas where local_id = ${params.id}
+  const [local] = await sql`
+    select id, nome, ativo, coalesce(excluido, false) as excluido
+    from locais
+    where id = ${params.id}
   `;
 
-  if (Number(rotasCount?.count) > 0) {
-    // Possui rotas: desativação segura
+  if (!local) {
+    return NextResponse.json({ error: "Local não encontrado" }, { status: 404 });
+  }
+
+  // 1º passo: se estiver ATIVO, inativa primeiro
+  if (local.ativo) {
     await sql`
       update locais set ativo = false where id = ${params.id}
     `;
     return NextResponse.json({
       ok: true,
       tipo: "desativado",
-      mensagem: "Local desativado com sucesso (histórico de rotas preservado).",
+      mensagem: `Local "${local.nome}" inativado com sucesso.`,
     });
   }
 
-  // Não possui rotas: exclusão física permitida
-  const [localDeletado] = await sql`
-    delete from locais where id = ${params.id} returning id
+  // 2º passo: se já estiver INATIVO, remove da página
+  const [rotasCount] = await sql`
+    select count(*) as count from rotas where local_id = ${params.id}
   `;
 
-  if (!localDeletado) {
-    return NextResponse.json({ error: "Local não encontrado" }, { status: 404 });
+  if (Number(rotasCount?.count) > 0) {
+    // Possui rotas: oculta da listagem (excluido = true) para preservar histórico financeiro
+    await sql`
+      update locais set excluido = true where id = ${params.id}
+    `;
+    return NextResponse.json({
+      ok: true,
+      tipo: "removido",
+      mensagem: `Local "${local.nome}" removido da página com sucesso!`,
+    });
   }
+
+  // Sem rotas associadas: exclusão física do banco
+  await sql`
+    delete from locais where id = ${params.id}
+  `;
 
   return NextResponse.json({
     ok: true,
     tipo: "excluido",
-    mensagem: "Local excluído permanentemente com sucesso.",
+    mensagem: `Local "${local.nome}" excluído definitivamente.`,
   });
 }
 

@@ -71,10 +71,19 @@ interface Relatorio {
   }>;
   rotas_detalhadas?: RotaDetalhada[];
   financeiro: {
+    quentinhas_total?: number;
+    rotas_total?: number;
     receita: number;
     custo: number;
     saldo: number;
   };
+}
+
+function toLocalDateStr(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 export default function Home() {
@@ -93,7 +102,7 @@ export default function Home() {
   const [adminTab, setAdminTab] = useState<"geral" | "locais" | "motoboys" | "relatorios">("geral");
 
   // Filtro de Data para a listagem de Rotas
-  const [dataFiltro, setDataFiltro] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [dataFiltro, setDataFiltro] = useState<string>(() => toLocalDateStr());
 
   // Dados do Sistema
   const [locais, setLocais] = useState<Local[]>([]);
@@ -126,6 +135,7 @@ export default function Home() {
     tipo: "local" | "motoboy";
     id: number;
     nome: string;
+    ativo?: boolean;
   } | null>(null);
 
   // Formulários Locais & Motoboys
@@ -286,26 +296,29 @@ export default function Home() {
     }
   }
 
-  async function carregarRelatorio(filtro: "dia" | "semana" | "mes" | "tudo") {
+  async function carregarRelatorio(filtro: "dia" | "semana" | "mes" | "tudo" = periodoFiltro) {
     if (!usuario) return;
     try {
       const hoje = new Date();
       let de = "";
-      const ate = hoje.toISOString().slice(0, 10);
+      let ate = "";
 
       if (filtro === "dia") {
-        de = ate;
+        de = toLocalDateStr(hoje);
+        ate = toLocalDateStr(hoje);
       } else if (filtro === "semana") {
         const d = new Date();
         d.setDate(d.getDate() - 7);
-        de = d.toISOString().slice(0, 10);
+        de = toLocalDateStr(d);
+        ate = toLocalDateStr(hoje);
       } else if (filtro === "mes") {
         const d = new Date();
         d.setDate(d.getDate() - 30);
-        de = d.toISOString().slice(0, 10);
+        de = toLocalDateStr(d);
+        ate = toLocalDateStr(hoje);
       }
 
-      const url = de ? `/api/relatorios?de=${de}&ate=${ate}` : "/api/relatorios";
+      const url = de && ate ? `/api/relatorios?de=${de}&ate=${ate}` : "/api/relatorios";
       const res = await fetch(url);
       const data = await res.json();
       setRelatorio(data);
@@ -775,22 +788,21 @@ export default function Home() {
                         <span style={{ fontSize: 13, color: "#6b6558" }}>Visualizando data:</span>
                         <button
                           type="button"
-                          className={`date-badge-btn ${dataFiltro === new Date().toISOString().slice(0, 10) ? "active" : ""}`}
-                          onClick={() => setDataFiltro(new Date().toISOString().slice(0, 10))}
+                          className={`date-badge-btn ${dataFiltro === toLocalDateStr() ? "active" : ""}`}
+                          onClick={() => setDataFiltro(toLocalDateStr())}
                         >
                           Hoje
                         </button>
                         <button
                           type="button"
                           className={`date-badge-btn ${
-                            dataFiltro ===
-                            new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+                            dataFiltro === toLocalDateStr(new Date(Date.now() - 86400000))
                               ? "active"
                               : ""
                           }`}
                           onClick={() => {
                             const ontem = new Date(Date.now() - 86400000);
-                            setDataFiltro(ontem.toISOString().slice(0, 10));
+                            setDataFiltro(toLocalDateStr(ontem));
                           }}
                         >
                           Ontem
@@ -1109,15 +1121,17 @@ export default function Home() {
                               <td style={{ textAlign: "right" }}>
                                 <button
                                   className="btn-danger-link"
+                                  title={local.ativo ? "Inativar local" : "Excluir definitivamente da página"}
                                   onClick={() =>
                                     setModalConfirmDelete({
                                       tipo: "local",
                                       id: local.id,
                                       nome: local.nome,
+                                      ativo: local.ativo,
                                     })
                                   }
                                 >
-                                  Excluir
+                                  {local.ativo ? "Inativar" : "Excluir da página"}
                                 </button>
                               </td>
                             </tr>
@@ -1178,15 +1192,17 @@ export default function Home() {
                                   </button>
                                   <button
                                     className="btn-danger-link"
+                                    title={moto.ativo ? "Inativar motoboy" : "Excluir definitivamente da página"}
                                     onClick={() =>
                                       setModalConfirmDelete({
                                         tipo: "motoboy",
                                         id: moto.id,
                                         nome: moto.nome,
+                                        ativo: moto.ativo,
                                       })
                                     }
                                   >
-                                    Excluir
+                                    {moto.ativo ? "Inativar" : "Excluir da página"}
                                   </button>
                                 </div>
                               </td>
@@ -1214,28 +1230,40 @@ export default function Home() {
                           <button
                             type="button"
                             className={periodoFiltro === "dia" ? "active" : ""}
-                            onClick={() => setPeriodoFiltro("dia")}
+                            onClick={() => {
+                              setPeriodoFiltro("dia");
+                              carregarRelatorio("dia");
+                            }}
                           >
                             Hoje
                           </button>
                           <button
                             type="button"
                             className={periodoFiltro === "semana" ? "active" : ""}
-                            onClick={() => setPeriodoFiltro("semana")}
+                            onClick={() => {
+                              setPeriodoFiltro("semana");
+                              carregarRelatorio("semana");
+                            }}
                           >
                             Últimos 7 dias
                           </button>
                           <button
                             type="button"
                             className={periodoFiltro === "mes" ? "active" : ""}
-                            onClick={() => setPeriodoFiltro("mes")}
+                            onClick={() => {
+                              setPeriodoFiltro("mes");
+                              carregarRelatorio("mes");
+                            }}
                           >
                             Últimos 30 dias
                           </button>
                           <button
                             type="button"
                             className={periodoFiltro === "tudo" ? "active" : ""}
-                            onClick={() => setPeriodoFiltro("tudo")}
+                            onClick={() => {
+                              setPeriodoFiltro("tudo");
+                              carregarRelatorio("tudo");
+                            }}
                           >
                             Todo o Histórico
                           </button>
@@ -1253,7 +1281,9 @@ export default function Home() {
                       <div className="card">
                         <div className="label">Quentinhas entregues</div>
                         <div className="value">
-                          {relatorio?.por_motoboy.reduce((acc, m) => acc + Number(m.quentinhas), 0) || 0}
+                          {relatorio?.financeiro?.quentinhas_total ??
+                            relatorio?.por_motoboy.reduce((acc, m) => acc + Number(m.quentinhas), 0) ??
+                            0}
                           <small> un.</small>
                         </div>
                       </div>
@@ -1261,7 +1291,9 @@ export default function Home() {
                       <div className="card">
                         <div className="label">Total de viagens</div>
                         <div className="value">
-                          {relatorio?.por_motoboy.reduce((acc, m) => acc + Number(m.rotas), 0) || 0}
+                          {relatorio?.financeiro?.rotas_total ??
+                            relatorio?.por_motoboy.reduce((acc, m) => acc + Number(m.rotas), 0) ??
+                            0}
                           <small> rotas</small>
                         </div>
                       </div>
@@ -1800,7 +1832,9 @@ export default function Home() {
         <div className="modal-overlay" onClick={() => setModalConfirmDelete(null)}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header-row">
-              <h3 style={{ color: "var(--stamp-red)" }}>Confirmar exclusão</h3>
+              <h3 style={{ color: "var(--stamp-red)" }}>
+                {modalConfirmDelete.ativo ? "Confirmar inativação" : "Excluir da página"}
+              </h3>
               <button
                 style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16 }}
                 onClick={() => setModalConfirmDelete(null)}
@@ -1809,11 +1843,14 @@ export default function Home() {
               </button>
             </div>
             <p style={{ fontSize: 13.5, margin: "14px 0" }}>
-              Deseja realmente remover {modalConfirmDelete.tipo === "local" ? "o local" : "o motoboy"}{" "}
+              Deseja realmente {modalConfirmDelete.ativo ? "inativar" : "remover da página"}{" "}
+              {modalConfirmDelete.tipo === "local" ? "o local" : "o motoboy"}{" "}
               <strong>&quot;{modalConfirmDelete.nome}&quot;</strong>?
             </p>
             <p style={{ fontSize: 12, color: "#6b6558" }}>
-              Caso haja rotas vinculadas, o cadastro será arquivado/desativado para manter os relatórios financeiros.
+              {modalConfirmDelete.ativo
+                ? "O cadastro será desativado para novas rotas. Se desejar removê-lo da página depois, basta clicar em excluir novamente."
+                : "Este item já está inativo e será removido da página. O histórico financeiro e de fechamentos continuará 100% preservado nos relatórios."}
             </p>
             <div className="modal-footer-row">
               <button
@@ -1835,7 +1872,7 @@ export default function Home() {
                   }
                 }}
               >
-                Confirmar
+                {modalConfirmDelete.ativo ? "Inativar" : "Excluir da Página"}
               </button>
             </div>
           </div>
