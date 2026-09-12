@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Quentinhas da Rê — Telas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --ink: #24211C;
+            --paper: #EFEAE0;
+            --paper-alt: #E5DFD1;
+            --kraft: #A9744F;
+            --kraft-dark: #8A5D3E;
+            --stamp-red: #A13D2C;
+            --route-green: #4B6B4F;
+            --line: #C9BFA9;
+            --line-soft: #DBD3C0;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--paper);
+            color: var(--ink);
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        h1,
+        h2,
+        h3,
+        .slab {
+            font-family: 'Zilla Slab', serif;
+        }
+
+        .mono {
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        /* --- top demo switcher (not part of the product itself) --- */
+        .demo-bar {
+            display: flex;
+            gap: 0;
+            justify-content: center;
+            padding: 14px 0;
+            background: var(--ink);
+        }
+
+        .demo-bar button {
+            background: none;
+            border: 1px solid #4a463d;
+            color: #cfc8b8;
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            padding: 8px 18px;
+            cursor: pointer;
+        }
+
+        .demo-bar button.active {
+            background: var(--kraft);
+            color: #fff;
+            border-color: var(--kraft);
+        }
+
+        .demo-bar button:first-child {
+            border-radius: 3px 0 0 3px;
+        }
+
+        .demo-bar button:last-child {
+            border-radius: 0 3px 3px 0;
+            border-left: none;
+        }
+
+        .view {
+            display: none;
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 32px 24px 80px;
+        }
+
+        .view.active {
+            display: block;
+        }
+
+        /* ===================== ADMIN ===================== */
+        .admin-header {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            border-bottom: 2px solid var(--ink);
+            padding-bottom: 16px;
+            margin-bottom: 28px;
+        }
+
+        .admin-header .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .stampmark {
+            width: 40px;
+            height: 40px;
+            border: 2px solid var(--ink);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Zilla Slab', serif;
+            font-weight: 700;
+            font-size: 15px;
+            transform: rotate(-6deg);
+            flex-shrink: 0;
+        }
+
+        .admin-header h1 {
+            font-size: 22px;
+            margin: 0;
+            font-weight: 600;
+        }
+
+        .admin-header .today {
+            font-size: 13px;
+            color: #6b6558;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 190px 1fr;
+            gap: 32px;
+        }
+
+        nav.side {
+            border-right: 1px solid var(--line);
+            padding-right: 20px;
+        }
+
+        nav.side a {
+            display: block;
+            padding: 9px 2px 9px 12px;
+            margin-bottom: 2px;
+            text-decoration: none;
+            color: #5a5548;
+            font-size: 14px;
+            border-left: 2px solid transparent;
+        }
+
+        nav.side a.active {
+            border-left: 2px solid var(--kraft);
+            color: var(--ink);
+            font-weight: 600;
+            background: var(--paper-alt);
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+            margin-bottom: 28px;
+        }
+
+        .card {
+            border: 1px solid var(--line);
+            background: #F7F3EA;
+            padding: 16px 16px 14px;
+        }
+
+        .card .label {
+            font-size: 12px;
+            color: #7a7364;
+            margin-bottom: 8px;
+        }
+
+        .card .value {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .card .value small {
+            font-size: 13px;
+            font-weight: 500;
+            color: #7a7364;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .panel-title {
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: none;
+            margin: 0 0 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1.4fr 1fr;
+            gap: 22px;
+            margin-bottom: 28px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13.5px;
+        }
+
+        th {
+            text-align: left;
+            font-weight: 500;
+            font-size: 11.5px;
+            color: #8a8372;
+            padding: 6px 10px;
+            border-bottom: 1px solid var(--ink);
+        }
+
+        td {
+            padding: 9px 10px;
+            border-bottom: 1px solid var(--line-soft);
+        }
+
+        td.num,
+        th.num {
+            font-family: 'IBM Plex Mono', monospace;
+            text-align: right;
+        }
+
+        .stamp {
+            display: inline-block;
+            font-family: 'Zilla Slab', serif;
+            font-weight: 700;
+            font-size: 10.5px;
+            letter-spacing: .03em;
+            padding: 2px 8px;
+            border: 1.5px solid currentColor;
+            border-radius: 3px;
+            transform: rotate(-3deg);
+        }
+
+        .stamp.ok {
+            color: var(--route-green);
+        }
+
+        .stamp.pend {
+            color: var(--stamp-red);
+        }
+
+        .new-route {
+            border: 1px solid var(--line);
+            background: #F7F3EA;
+            padding: 18px;
+        }
+
+        .field {
+            margin-bottom: 12px;
+        }
+
+        .field label {
+            display: block;
+            font-size: 12px;
+            color: #6b6558;
+            margin-bottom: 5px;
+        }
+
+        .field select,
+        .field input {
+            width: 100%;
+            padding: 9px 10px;
+            border: 1px solid var(--line);
+            background: #fff;
+            font-family: 'Inter', sans-serif;
+            font-size: 13.5px;
+            color: var(--ink);
+        }
+
+        .btn {
+            background: var(--kraft);
+            color: #fff;
+            border: none;
+            padding: 10px 16px;
+            font-size: 13.5px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .btn:hover {
+            background: var(--kraft-dark);
+        }
+
+        .perf {
+            height: 1px;
+            margin: 26px 0;
+            background-image: repeating-linear-gradient(90deg, var(--line) 0 6px, transparent 6px 12px);
+        }
+
+        /* --- Relatórios --- */
+        .filters {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 22px;
+        }
+
+        .filters button {
+            background: #fff;
+            border: 1px solid var(--line);
+            padding: 7px 14px;
+            font-size: 13px;
+            cursor: pointer;
+            color: #5a5548;
+        }
+
+        .filters button.active {
+            background: var(--ink);
+            color: #fff;
+            border-color: var(--ink);
+        }
+
+        .bar-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+
+        .bar-row .name {
+            width: 110px;
+            flex-shrink: 0;
+            color: #4a453b;
+        }
+
+        .bar-track {
+            flex: 1;
+            background: var(--paper-alt);
+            height: 16px;
+            position: relative;
+        }
+
+        .bar-fill {
+            height: 100%;
+            background: var(--kraft);
+        }
+
+        .bar-row .amt {
+            width: 44px;
+            text-align: right;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 12.5px;
+            flex-shrink: 0;
+        }
+
+        /* ===================== MOTOBOY ===================== */
+        .phone-wrap {
+            display: flex;
+            justify-content: center;
+        }
+
+        .phone {
+            width: 360px;
+            background: var(--ink);
+            border-radius: 34px;
+            padding: 14px;
+        }
+
+        .screen {
+            background: var(--paper);
+            border-radius: 22px;
+            overflow: hidden;
+            min-height: 640px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .m-header {
+            padding: 20px 18px 14px;
+            border-bottom: 2px solid var(--ink);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .m-header h2 {
+            margin: 0;
+            font-size: 17px;
+            font-weight: 600;
+        }
+
+        .m-nav {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12.5px;
+            color: #6b6558;
+        }
+
+        .m-nav button {
+            border: 1px solid var(--line);
+            background: #fff;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            font-size: 13px;
+            line-height: 1;
+        }
+
+        .m-summary {
+            display: flex;
+            gap: 0;
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--line);
+            background: #F7F3EA;
+        }
+
+        .m-summary div {
+            flex: 1;
+        }
+
+        .m-summary .n {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 19px;
+            font-weight: 600;
+            display: block;
+        }
+
+        .m-summary .l {
+            font-size: 11px;
+            color: #7a7364;
+        }
+
+        .stop-list {
+            padding: 14px 18px;
+            flex: 1;
+        }
+
+        .stop {
+            border: 1px solid var(--line);
+            background: #fff;
+            padding: 13px 14px;
+            margin-bottom: 10px;
+        }
+
+        .stop-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 6px;
+        }
+
+        .stop-top .loc {
+            font-weight: 600;
+            font-size: 14.5px;
+        }
+
+        .stop-meta {
+            font-size: 12.5px;
+            color: #6b6558;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .qty {
+            font-family: 'IBM Plex Mono', monospace;
+            font-weight: 600;
+        }
+
+        .m-footnote {
+            padding: 10px 18px 18px;
+            font-size: 11.5px;
+            color: #8a8372;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="demo-bar">
+        <button class="active" onclick="showView('admin', this)">Painel da Dona</button>
+        <button onclick="showView('moto', this)">App do Motoboy</button>
+    </div>
+
+    <!-- ================= ADMIN VIEW ================= -->
+    <div class="view active" id="admin">
+        <div class="admin-header">
+            <div class="brand">
+                <div class="stampmark">QR</div>
+                <h1>Quentinhas da Rê</h1>
+            </div>
+            <div class="today">Terça-feira, 9 de setembro</div>
+        </div>
+
+        <div class="layout">
+            <nav class="side">
+                <a class="active">Visão geral</a>
+                <a>Rotas</a>
+                <a>Locais</a>
+                <a>Motoboys</a>
+                <a>Financeiro</a>
+                <a>Relatórios</a>
+            </nav>
+
+            <div>
+                <div class="cards">
+                    <div class="card">
+                        <div class="label">Rotas hoje</div>
+                        <div class="value">7</div>
+                    </div>
+                    <div class="card">
+                        <div class="label">Quentinhas hoje</div>
+                        <div class="value">184</div>
+                    </div>
+                    <div class="card">
+                        <div class="label">Motoboys ativos</div>
+                        <div class="value">3</div>
+                    </div>
+                    <div class="card">
+                        <div class="label">Saldo do dia</div>
+                        <div class="value">R$ 312<small>,00</small></div>
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <div>
+                        <div class="panel-title">Rotas de hoje</div>
+                        <table>
+                            <tr>
+                                <th>Local</th>
+                                <th>Motoboy</th>
+                                <th class="num">Qtd</th>
+                                <th>Status</th>
+                            </tr>
+                            <tr>
+                                <td>Zona Norte — Mercadão</td>
+                                <td>Junior</td>
+                                <td class="num">32</td>
+                                <td><span class="stamp ok">ENTREGUE</span></td>
+                            </tr>
+                            <tr>
+                                <td>Centro — Praça Rio Branco</td>
+                                <td>Carlos</td>
+                                <td class="num">28</td>
+                                <td><span class="stamp ok">ENTREGUE</span></td>
+                            </tr>
+                            <tr>
+                                <td>Zona Leste — UFPI</td>
+                                <td>Anderson</td>
+                                <td class="num">45</td>
+                                <td><span class="stamp pend">PENDENTE</span></td>
+                            </tr>
+                            <tr>
+                                <td>Zona Sul — Distrito</td>
+                                <td>Junior</td>
+                                <td class="num">19</td>
+                                <td><span class="stamp pend">PENDENTE</span></td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div class="new-route">
+                        <div class="panel-title">Nova rota</div>
+                        <div class="field"><label>Local</label>
+                            <select>
+                                <option>Zona Norte — Mercadão</option>
+                                <option>Centro — Praça Rio Branco</option>
+                                <option>Zona Leste — UFPI</option>
+                            </select>
+                        </div>
+                        <div class="field"><label>Motoboy</label>
+                            <select>
+                                <option>Junior</option>
+                                <option>Carlos</option>
+                                <option>Anderson</option>
+                            </select>
+                        </div>
+                        <div class="field"><label>Quantidade de quentinhas</label>
+                            <input type="number" value="30">
+                        </div>
+                        <button class="btn">Criar rota</button>
+                    </div>
+                </div>
+
+                <div class="perf"></div>
+
+                <div class="panel-title">Relatórios <span
+                        style="font-weight:400; font-size:12px; color:#8a8372;">período: esta semana</span></div>
+                <div class="filters">
+                    <button>Dia</button><button
+                        class="active">Semana</button><button>Mês</button><button>Personalizado</button>
+                </div>
+
+                <div class="grid-2">
+                    <div>
+                        <div class="panel-title" style="font-size:12.5px; color:#6b6558;">Rotas e quentinhas por motoboy
+                        </div>
+                        <div class="bar-row">
+                            <div class="name">Junior</div>
+                            <div class="bar-track">
+                                <div class="bar-fill" style="width:88%"></div>
+                            </div>
+                            <div class="amt">312</div>
+                        </div>
+                        <div class="bar-row">
+                            <div class="name">Carlos</div>
+                            <div class="bar-track">
+                                <div class="bar-fill" style="width:64%"></div>
+                            </div>
+                            <div class="amt">227</div>
+                        </div>
+                        <div class="bar-row">
+                            <div class="name">Anderson</div>
+                            <div class="bar-track">
+                                <div class="bar-fill" style="width:51%"></div>
+                            </div>
+                            <div class="amt">180</div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="panel-title" style="font-size:12.5px; color:#6b6558;">Quentinhas por local</div>
+                        <div class="bar-row">
+                            <div class="name">Mercadão</div>
+                            <div class="bar-track">
+                                <div class="bar-fill" style="width:70%; background:var(--route-green);"></div>
+                            </div>
+                            <div class="amt">224</div>
+                        </div>
+                        <div class="bar-row">
+                            <div class="name">Rio Branco</div>
+                            <div class="bar-track">
+                                <div class="bar-fill" style="width:58%; background:var(--route-green);"></div>
+                            </div>
+                            <div class="amt">186</div>
+                        </div>
+                        <div class="bar-row">
+                            <div class="name">UFPI</div>
+                            <div class="bar-track">
+                                <div class="bar-fill" style="width:90%; background:var(--route-green);"></div>
+                            </div>
+                            <div class="amt">309</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= MOTOBOY VIEW ================= -->
+    <div class="view" id="moto">
+        <div class="phone-wrap">
+            <div class="phone">
+                <div class="screen">
+                    <div class="m-header">
+                        <h2>Minhas rotas</h2>
+                        <div class="m-nav">
+                            <button>‹</button> Ter, 9 set <button>›</button>
+                        </div>
+                    </div>
+                    <div class="m-summary">
+                        <div><span class="n">3</span><span class="l">rotas hoje</span></div>
+                        <div><span class="n">96</span><span class="l">quentinhas</span></div>
+                    </div>
+                    <div class="stop-list">
+                        <div class="stop">
+                            <div class="stop-top"><span class="loc">Zona Norte — Mercadão</span><span
+                                    class="stamp ok">ENTREGUE</span></div>
+                            <div class="stop-meta"><span>Entrada principal, banca 12</span><span class="qty">32
+                                    un.</span></div>
+                        </div>
+                        <div class="stop">
+                            <div class="stop-top"><span class="loc">Zona Sul — Distrito</span><span
+                                    class="stamp pend">PENDENTE</span></div>
+                            <div class="stop-meta"><span>Rua dos Motores, 480</span><span class="qty">19 un.</span>
+                            </div>
+                        </div>
+                        <div class="stop">
+                            <div class="stop-top"><span class="loc">Centro — Praça Rio Branco</span><span
+                                    class="stamp pend">PENDENTE</span></div>
+                            <div class="stop-meta"><span>Em frente à banca de jornal</span><span class="qty">45
+                                    un.</span></div>
+                        </div>
+                    </div>
+                    <div class="m-footnote">Toque em uma rota pra marcar como entregue</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showView(id, btn) {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            document.querySelectorAll('.demo-bar button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        }
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,888 @@
+@import url('https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap');
+
+:root {
+  --ink: #24211C;
+  --paper: #EFEAE0;
+  --paper-alt: #E5DFD1;
+  --kraft: #A9744F;
+  --kraft-dark: #8A5D3E;
+  --stamp-red: #A13D2C;
+  --route-green: #4B6B4F;
+  --line: #C9BFA9;
+  --line-soft: #DBD3C0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, .slab {
+  font-family: 'Zilla Slab', serif;
+}
+
+.mono {
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* Top Switcher Bar */
+.demo-bar {
+  display: flex;
+  gap: 0;
+  justify-content: center;
+  align-items: center;
+  padding: 10px 16px;
+  background: var(--ink);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.demo-bar button {
+  background: none;
+  border: 1px solid #4a463d;
+  color: #cfc8b8;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 18px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.demo-bar button.active {
+  background: var(--kraft);
+  color: #fff;
+  border-color: var(--kraft);
+}
+
+.demo-bar button:first-child {
+  border-radius: 4px 0 0 4px;
+}
+
+.demo-bar button:last-child {
+  border-radius: 0 4px 4px 0;
+  border-left: none;
+}
+
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 16px;
+  font-size: 11.5px;
+  color: #a3e635;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.live-dot {
+  width: 6px;
+  height: 6px;
+  background: #a3e635;
+  border-radius: 50%;
+  animation: pulse 1.8s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.8; }
+}
+
+.container {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 28px 20px 80px;
+}
+
+/* Header Admin */
+.admin-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 2px solid var(--ink);
+  padding-bottom: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.admin-header .brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.stampmark {
+  width: 44px;
+  height: 44px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Zilla Slab', serif;
+  font-weight: 700;
+  font-size: 17px;
+  transform: rotate(-6deg);
+  flex-shrink: 0;
+  background: var(--paper-alt);
+}
+
+.admin-header h1 {
+  font-size: 24px;
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.admin-header .today {
+  font-size: 13px;
+  color: #6b6558;
+}
+
+/* Layout Side Navigation */
+.layout {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 32px;
+}
+
+@media (max-width: 860px) {
+  .layout {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+
+nav.side {
+  border-right: 1px solid var(--line);
+  padding-right: 20px;
+}
+
+@media (max-width: 860px) {
+  nav.side {
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    padding-right: 0;
+    padding-bottom: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+}
+
+nav.side button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 10px 12px;
+  margin-bottom: 3px;
+  text-decoration: none;
+  color: #5a5548;
+  font-size: 14px;
+  font-family: 'Inter', sans-serif;
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+nav.side button:hover {
+  background: var(--paper-alt);
+  color: var(--ink);
+}
+
+nav.side button.active {
+  border-left: 3px solid var(--kraft);
+  color: var(--ink);
+  font-weight: 600;
+  background: var(--paper-alt);
+}
+
+/* Cards */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 26px;
+}
+
+@media (max-width: 768px) {
+  .cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+.card {
+  border: 1px solid var(--line);
+  background: #F7F3EA;
+  padding: 16px;
+}
+
+.card .label {
+  font-size: 11.5px;
+  color: #7a7364;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.card .value {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.card .value small {
+  font-size: 13px;
+  font-weight: 500;
+  color: #7a7364;
+  font-family: 'Inter', sans-serif;
+}
+
+.panel-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+@media (max-width: 920px) {
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Tables */
+.table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #FAF6EE;
+  border: 1px solid var(--line);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 11.5px;
+  color: #8a8372;
+  padding: 8px 12px;
+  border-bottom: 1.5px solid var(--ink);
+  background: #F2ECE0;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+td.num, th.num {
+  font-family: 'IBM Plex Mono', monospace;
+  text-align: right;
+}
+
+/* Carimbos Clássicos (Stamps) */
+.stamp {
+  display: inline-block;
+  font-family: 'Zilla Slab', serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: .04em;
+  padding: 2px 8px;
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+  transform: rotate(-3deg);
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.stamp.ok {
+  color: var(--route-green);
+  border-color: var(--route-green);
+  background: rgba(75, 107, 79, 0.06);
+}
+
+.stamp.pend {
+  color: var(--stamp-red);
+  border-color: var(--stamp-red);
+  background: rgba(161, 61, 44, 0.06);
+}
+
+.stamp.cancel {
+  color: #8a8372;
+  border-color: #8a8372;
+}
+
+/* Forms & Panels */
+.new-route, .panel-box {
+  border: 1px solid var(--line);
+  background: #F7F3EA;
+  padding: 20px;
+}
+
+.field {
+  margin-bottom: 14px;
+}
+
+.field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b6558;
+  margin-bottom: 5px;
+}
+
+.field select, .field input, .field textarea {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  background: #fff;
+  font-family: 'Inter', sans-serif;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+
+.field select:focus, .field input:focus, .field textarea:focus {
+  outline: 2px solid var(--kraft);
+}
+
+.btn {
+  background: var(--kraft);
+  color: #fff;
+  border: none;
+  padding: 10px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  font-family: inherit;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--kraft-dark);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: #fff;
+  border: 1px solid var(--line);
+  color: #5a5548;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+.btn-secondary:hover {
+  background: var(--paper-alt);
+  color: var(--ink);
+}
+
+.btn-danger-link {
+  background: none;
+  border: 1px solid #d4a59a;
+  color: var(--stamp-red);
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-danger-link:hover {
+  background: #fbeae8;
+}
+
+.perf {
+  height: 1px;
+  margin: 26px 0;
+  background-image: repeating-linear-gradient(90deg, var(--line) 0 6px, transparent 6px 12px);
+}
+
+/* Relatórios & Filtros */
+.filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+
+.filters button {
+  background: #fff;
+  border: 1px solid var(--line);
+  padding: 7px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  color: #5a5548;
+}
+
+.filters button.active {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.bar-row .name {
+  width: 120px;
+  flex-shrink: 0;
+  color: #4a453b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bar-track {
+  flex: 1;
+  background: var(--paper-alt);
+  height: 18px;
+  position: relative;
+}
+
+.bar-fill {
+  height: 100%;
+  background: var(--kraft);
+}
+
+.bar-row .amt {
+  width: 50px;
+  text-align: right;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12.5px;
+  flex-shrink: 0;
+}
+
+/* ===================== SIMULADOR MOTOBOY ===================== */
+.phone-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.phone-selector-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #F7F3EA;
+  border: 1px solid var(--line);
+  padding: 8px 16px;
+}
+
+.phone {
+  width: 375px;
+  max-width: 100%;
+  background: var(--ink);
+  border-radius: 34px;
+  padding: 14px;
+  box-shadow: 0 10px 28px rgba(0,0,0,0.25);
+}
+
+.screen {
+  background: var(--paper);
+  border-radius: 22px;
+  overflow: hidden;
+  min-height: 600px;
+  display: flex;
+  flex-direction: column;
+}
+
+.m-header {
+  padding: 20px 18px 14px;
+  border-bottom: 2px solid var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.m-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.m-summary {
+  display: flex;
+  gap: 0;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  background: #F7F3EA;
+}
+
+.m-summary div {
+  flex: 1;
+}
+
+.m-summary .n {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 20px;
+  font-weight: 600;
+  display: block;
+}
+
+.m-summary .l {
+  font-size: 11px;
+  color: #7a7364;
+  text-transform: uppercase;
+}
+
+.stop-list {
+  padding: 14px 18px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.stop {
+  border: 1px solid var(--line);
+  background: #fff;
+  padding: 14px;
+  margin-bottom: 14px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+}
+
+.stop.delivered {
+  background: #F4F8F4;
+  border-color: #9cbda0;
+}
+
+.stop-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+
+.stop-top .loc {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--ink);
+}
+
+/* Badge Gigante de Quantidade no Estilo Clássico */
+.m-qty-badge {
+  background: #F7F3EA;
+  border: 1px solid var(--line);
+  padding: 6px 12px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #5a5548;
+}
+
+.m-qty-badge .num-highlight {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.stop-meta {
+  font-size: 12px;
+  color: #6b6558;
+  margin-bottom: 14px;
+}
+
+/* BOTÃO DE CONFIRMAR ENTREGA — Grande, Evidente para Leigos */
+.btn-delivery-action {
+  width: 100%;
+  background: var(--route-green);
+  color: #fff;
+  border: none;
+  padding: 14px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: inherit;
+  letter-spacing: 0.02em;
+  transition: background 0.15s ease;
+}
+
+.btn-delivery-action:hover {
+  background: #39523c;
+}
+
+.delivered-status-box {
+  background: #EAF2EB;
+  border: 1.5px solid var(--route-green);
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--route-green);
+  font-weight: 700;
+}
+
+.btn-undo-link {
+  background: none;
+  border: none;
+  color: #6b6558;
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 2px 4px;
+}
+
+.btn-undo-link:hover {
+  color: var(--stamp-red);
+}
+
+.m-footnote {
+  padding: 10px 18px 18px;
+  font-size: 11.5px;
+  color: #8a8372;
+  text-align: center;
+  background: var(--paper-alt);
+}
+
+/* Modais Estilo Papel / Carimbo */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(36, 33, 28, 0.6);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal-box {
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  max-width: 460px;
+  width: 100%;
+  padding: 24px;
+  box-shadow: 6px 6px 0 var(--ink);
+}
+
+.modal-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1.5px solid var(--ink);
+  padding-bottom: 10px;
+  margin-bottom: 16px;
+}
+
+.modal-header-row h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.modal-footer-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+/* ===================== TELA DE LOGIN ===================== */
+.login-screen-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: var(--paper);
+}
+
+.login-card {
+  background: #F7F3EA;
+  border: 2px solid var(--ink);
+  box-shadow: 8px 8px 0 var(--ink);
+  max-width: 420px;
+  width: 100%;
+  padding: 32px 28px;
+}
+
+.login-header-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--ink);
+}
+
+.login-type-toggle {
+  display: flex;
+  margin-bottom: 20px;
+  border: 1px solid var(--ink);
+}
+
+.login-type-toggle button {
+  flex: 1;
+  background: #fff;
+  border: none;
+  padding: 10px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #6b6558;
+  transition: all 0.15s ease;
+}
+
+.login-type-toggle button.active {
+  background: var(--ink);
+  color: #fff;
+}
+
+/* WhatsApp Button */
+.btn-whatsapp {
+  background: #25D366;
+  color: #fff;
+  border: 1px solid #1ea952;
+  padding: 8px 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+  transition: background 0.15s ease;
+}
+
+.btn-whatsapp:hover {
+  background: #1eb857;
+}
+
+.date-selector-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.date-badge-btn {
+  background: #fff;
+  border: 1px solid var(--line);
+  padding: 5px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  color: #5a5548;
+}
+
+.date-badge-btn.active {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+
+/* Accordion de Rotas nos Relatórios */
+.accordion-row {
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease;
+}
+
+.accordion-row:hover {
+  background: var(--paper-alt) !important;
+}
+
+.accordion-row.is-open {
+  background: #EFE8DA !important;
+  font-weight: 600;
+}
+
+.accordion-arrow {
+  display: inline-block;
+  margin-right: 8px;
+  font-size: 11px;
+  color: var(--kraft);
+  transition: transform 0.2s ease;
+}
+
+.accordion-details-row {
+  background: #FAF8F2;
+}
+
+.accordion-details-cell {
+  padding: 0 0 16px 0 !important;
+  border-bottom: 2px solid var(--ink) !important;
+}
+
+.sub-routes-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #FFFDF9;
+  border-top: 1px solid var(--line);
+  font-size: 12.5px;
+}
+
+.sub-routes-table th {
+  background: #EDE6D6;
+  font-size: 11px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+  color: #6b6558;
+}
+
+.sub-routes-table td {
+  padding: 8px 12px;
+  border-bottom: 1px dashed var(--line);
+}
+
+.sub-routes-table tr:last-child td {
+  border-bottom: none;
+}
+
+

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Fundo papel artesanal -->
+  <rect width="512" height="512" rx="100" fill="#24211C"/>
+  <rect x="24" y="24" width="464" height="464" rx="80" fill="#EFEAE0" stroke="#C9BFA9" stroke-width="8"/>
+  
+  <!-- Marmita / Quentinha Central -->
+  <rect x="96" y="140" width="320" height="240" rx="36" fill="#F7F3EA" stroke="#24211C" stroke-width="12"/>
+  <line x1="96" y1="230" x2="416" y2="230" stroke="#A9744F" stroke-width="10" stroke-dasharray="16 12"/>
+  
+  <!-- Carimbo QR -->
+  <circle cx="256" cy="300" r="48" fill="none" stroke="#A13D2C" stroke-width="8" stroke-dasharray="8 6"/>
+  <text x="256" y="312" font-family="serif" font-size="34" font-weight="bold" fill="#A13D2C" text-anchor="middle" transform="rotate(-8 256 300)">QR</text>
+  
+  <!-- Detalhe Kraft Topo -->
+  <path d="M 170 140 C 170 100, 342 100, 342 140" fill="none" stroke="#A9744F" stroke-width="12" stroke-linecap="round"/>
+</svg>
