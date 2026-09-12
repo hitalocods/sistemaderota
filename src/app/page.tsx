@@ -94,8 +94,7 @@ export default function Home() {
   const [authChecking, setAuthChecking] = useState(true);
   const [usuario, setUsuario] = useState<Usuario | null>(null);
 
-  // Formulário de Login Unificado
-  const [loginUsuario, setLoginUsuario] = useState("");
+  // Formulário de Login Unificado (Apenas Senha)
   const [loginSenha, setLoginSenha] = useState("");
   const [loginEntrando, setLoginEntrando] = useState(false);
 
@@ -196,7 +195,7 @@ export default function Home() {
     verificarSessao();
   }, []);
 
-  // Login Unificado
+  // Login Unificado (Apenas Senha)
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     if (!loginSenha) {
@@ -209,20 +208,18 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          login: loginUsuario.trim(),
           senha: loginSenha.trim(),
         }),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        showToast(data.error || "Falha no acesso");
+        showToast(data.error || "Senha incorreta");
         return;
       }
 
       setUsuario(data.usuario);
       setLoginSenha("");
-      setLoginUsuario("");
       if (data.usuario.role === "motoboy") {
         setCurrentView("moto");
       } else {
@@ -664,36 +661,20 @@ export default function Home() {
             </div>
           </div>
 
-          <form onSubmit={handleLogin} style={{ marginTop: 16 }}>
-            <div className="field">
-              <label>
-                Usuário / Login <span style={{ fontWeight: 400, color: "#7a7364" }}>(opcional para entregadores)</span>
-              </label>
-              <input
-                type="text"
-                placeholder="Ex: admin ou seu login"
-                value={loginUsuario}
-                onChange={(e) => setLoginUsuario(e.target.value)}
-              />
-            </div>
-
+          <form onSubmit={handleLogin} style={{ marginTop: 20 }}>
             <div className="field">
               <label>Senha de Acesso</label>
               <input
                 type="password"
-                placeholder="Digite sua senha cadastrada"
+                placeholder="Digite sua senha de acesso"
                 value={loginSenha}
                 onChange={(e) => setLoginSenha(e.target.value)}
                 required
                 autoFocus
               />
-              <span style={{ fontSize: 11.5, color: "#7a7364", marginTop: 5, display: "block", lineHeight: 1.4 }}>
-                👩‍🍳 <strong>Dona:</strong> acesse com sua senha (padrão <code>re123</code>).<br />
-                🛵 <strong>Entregadores:</strong> podem entrar apenas digitando a sua senha!
-              </span>
             </div>
 
-            <button className="btn" type="submit" style={{ width: "100%", marginTop: 10 }} disabled={loginEntrando}>
+            <button className="btn" type="submit" style={{ width: "100%", marginTop: 14 }} disabled={loginEntrando}>
               {loginEntrando ? "Entrando..." : "Entrar no Sistema"}
             </button>
           </form>
