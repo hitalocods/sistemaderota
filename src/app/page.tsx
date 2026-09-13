@@ -712,45 +712,39 @@ export default function Home() {
       {/* Barra de alternância superior com logout */}
       <div className="demo-bar">
         {usuario.role === "admin" ? (
-          <>
+          <div className="demo-bar-nav">
             <button
               className={currentView === "admin" ? "active" : ""}
               onClick={() => setCurrentView("admin")}
             >
-              Painel da Dona
+              👩‍🍳 Painel Dona
             </button>
             <button
               className={currentView === "moto" ? "active" : ""}
               onClick={() => setCurrentView("moto")}
             >
-              App do Motoboy (Simulador)
+              🛵 App Motoboy
             </button>
-          </>
+          </div>
         ) : (
-          <div style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>
-            🛵 Olá, {usuario.nome}! Suas rotas de entrega
+          <div className="demo-bar-user">
+            🛵 <strong>{usuario.nome}</strong> (Suas entregas)
           </div>
         )}
 
-        <div className="live-badge" title="Sincronização em tempo real ativa">
-          <span className="live-dot"></span>
-          <span>ao vivo {lastSync && `• ${lastSync}`}</span>
-        </div>
+        <div className="demo-bar-meta">
+          <div className="live-badge" title="Sincronização em tempo real ativa">
+            <span className="live-dot"></span>
+            <span>ao vivo {lastSync && `• ${lastSync}`}</span>
+          </div>
 
-        <button
-          onClick={handleLogout}
-          style={{
-            marginLeft: "auto",
-            background: "transparent",
-            borderColor: "#5a5548",
-            color: "#e2d7c5",
-            fontSize: 12,
-            padding: "5px 12px",
-            borderRadius: 3,
-          }}
-        >
-          Sair
-        </button>
+          <button
+            onClick={handleLogout}
+            className="demo-bar-logout"
+          >
+            Sair
+          </button>
+        </div>
       </div>
 
       <div className="container">
@@ -881,7 +875,7 @@ export default function Home() {
                         </div>
 
                         <div className="table-container">
-                          <table>
+                          <table className="responsive-table">
                             <thead>
                               <tr>
                                 <th>Local</th>
@@ -901,12 +895,12 @@ export default function Home() {
                               ) : (
                                 rotas.map((rota) => (
                                   <tr key={rota.id}>
-                                    <td>
+                                    <td data-label="Local">
                                       <strong>{rota.local_nome}</strong>
                                     </td>
-                                    <td>{rota.motoboy_nome}</td>
-                                    <td className="num">{rota.quantidade}</td>
-                                    <td>
+                                    <td data-label="Motoboy">{rota.motoboy_nome}</td>
+                                    <td data-label="Quantidade" className="num">{rota.quantidade} un.</td>
+                                    <td data-label="Status">
                                       <span
                                         className={`stamp ${
                                           rota.status === "entregue"
@@ -919,8 +913,8 @@ export default function Home() {
                                         {rota.status}
                                       </span>
                                     </td>
-                                    <td style={{ textAlign: "center", whiteSpace: "nowrap" }}>
-                                      <div style={{ display: "inline-flex", gap: 5, alignItems: "center" }}>
+                                    <td data-label="Ações" className="actions-cell" style={{ textAlign: "center", whiteSpace: "nowrap" }}>
+                                      <div style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
                                         <button
                                           type="button"
                                           className="btn-whatsapp-sm"
@@ -1131,7 +1125,7 @@ export default function Home() {
                       </button>
                     </div>
                     <div className="table-container">
-                      <table>
+                      <table className="responsive-table">
                         <thead>
                           <tr>
                             <th>Local</th>
@@ -1145,20 +1139,20 @@ export default function Home() {
                         <tbody>
                           {locais.map((local) => (
                             <tr key={local.id}>
-                              <td>
+                              <td data-label="Local">
                                 <strong>{local.nome}</strong>
                               </td>
-                              <td style={{ color: "#6b6558" }}>{local.endereco || "—"}</td>
-                              <td>{local.contato || "—"}</td>
-                              <td className="num">
+                              <td data-label="Endereço" style={{ color: "#6b6558" }}>{local.endereco || "—"}</td>
+                              <td data-label="Contato">{local.contato || "—"}</td>
+                              <td data-label="Valor Unidade" className="num">
                                 R$ {Number(local.valor_unidade).toFixed(2)}
                               </td>
-                              <td>
+                              <td data-label="Status">
                                 <span className={`stamp ${local.ativo ? "ok" : "cancel"}`}>
                                   {local.ativo ? "ATIVO" : "INATIVO"}
                                 </span>
                               </td>
-                              <td style={{ textAlign: "right" }}>
+                              <td data-label="Ações" className="actions-cell" style={{ textAlign: "right" }}>
                                 <button
                                   className="btn-danger-link"
                                   title={local.ativo ? "Inativar local" : "Excluir definitivamente da página"}
@@ -1192,7 +1186,7 @@ export default function Home() {
                       </button>
                     </div>
                     <div className="table-container">
-                      <table>
+                      <table className="responsive-table">
                         <thead>
                           <tr>
                             <th>Nome</th>
@@ -1206,21 +1200,21 @@ export default function Home() {
                         <tbody>
                           {motoboys.map((moto) => (
                             <tr key={moto.id}>
-                              <td>
+                              <td data-label="Nome">
                                 <strong>{moto.nome}</strong>
                               </td>
-                              <td className="mono">{moto.login}</td>
-                              <td style={{ color: "#3d392e" }}>{moto.whatsapp || "—"}</td>
-                              <td className="num">
+                              <td data-label="Login" className="mono">{moto.login}</td>
+                              <td data-label="WhatsApp" style={{ color: "#3d392e" }}>{moto.whatsapp || "—"}</td>
+                              <td data-label="Taxa por rota" className="num">
                                 R$ {Number(moto.valor_rota).toFixed(2)}
                               </td>
-                              <td>
+                              <td data-label="Status">
                                 <span className={`stamp ${moto.ativo ? "ok" : "cancel"}`}>
                                   {moto.ativo ? "ATIVO" : "INATIVO"}
                                 </span>
                               </td>
-                              <td style={{ textAlign: "right" }}>
-                                <div style={{ display: "inline-flex", gap: 6 }}>
+                              <td data-label="Ações" className="actions-cell" style={{ textAlign: "right" }}>
+                                <div style={{ display: "inline-flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
                                   <button
                                     className="btn-secondary"
                                     style={{ fontSize: 11 }}
@@ -1339,19 +1333,7 @@ export default function Home() {
                     </div>
 
                     {/* Controles Dinâmicos quando o usuário escolhe Dia ou Mês específico */}
-                    <div
-                      style={{
-                        background: "#F7F3EA",
-                        border: "1px solid var(--line)",
-                        padding: "10px 14px",
-                        marginBottom: 18,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        flexWrap: "wrap",
-                        gap: 12,
-                      }}
-                    >
+                    <div className="filter-subbar">
                       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                         <span style={{ fontSize: 13, color: "#6b6558" }}>Período filtrado:</span>
                         <span
@@ -1502,7 +1484,7 @@ export default function Home() {
                       </div>
 
                       <div className="table-container">
-                        <table>
+                        <table className="responsive-table">
                           <thead>
                             <tr>
                               <th>Entregador (Motoboy)</th>
@@ -1529,24 +1511,24 @@ export default function Home() {
                                       }
                                       title="Clique para ver o extrato de rotas deste entregador"
                                     >
-                                      <td>
+                                      <td data-label="Entregador">
                                         <span className="accordion-arrow">
                                           {isOpen ? "▼" : "▶"}
                                         </span>
                                         <strong>{m.nome}</strong>
                                       </td>
-                                      <td className="num">{m.rotas} rotas</td>
-                                      <td className="num" style={{ fontWeight: 700 }}>
+                                      <td data-label="Rotas" className="num">{m.rotas} rotas</td>
+                                      <td data-label="Quentinhas" className="num" style={{ fontWeight: 700 }}>
                                         {m.quentinhas} un.
                                       </td>
-                                      <td className="num" style={{ fontWeight: 700, color: "var(--ink)" }}>
+                                      <td data-label="A Receber" className="num" style={{ fontWeight: 700, color: "var(--ink)" }}>
                                         R$ {Number(m.custo).toFixed(2)}
                                       </td>
-                                      <td style={{ textAlign: "center" }}>
+                                      <td data-label="Ações" className="actions-cell" style={{ textAlign: "center" }}>
                                         <button
                                           type="button"
                                           className="btn-secondary"
-                                          style={{ padding: "3px 8px", fontSize: 11 }}
+                                          style={{ padding: "4px 10px", fontSize: 11 }}
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             setMotoboyExpandidoId(isOpen ? null : m.id);
@@ -1561,7 +1543,7 @@ export default function Home() {
                                     {isOpen && (
                                       <tr className="accordion-details-row">
                                         <td colSpan={5} className="accordion-details-cell">
-                                          <div style={{ padding: "10px 16px" }}>
+                                          <div style={{ padding: "10px 14px" }}>
                                             <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: "#5a5548" }}>
                                               📋 Extrato de entregas de {m.nome} no período ({rotasDesteMotoboy.length} entregas concluídas):
                                             </div>
@@ -1571,7 +1553,7 @@ export default function Home() {
                                                 Nenhuma rota entregue por este motoboy no período selecionado.
                                               </div>
                                             ) : (
-                                              <table className="sub-routes-table">
+                                              <table className="sub-routes-table responsive-subtable">
                                                 <thead>
                                                   <tr>
                                                     <th>Data</th>
@@ -1600,22 +1582,22 @@ export default function Home() {
 
                                                     return (
                                                       <tr key={r.id}>
-                                                        <td style={{ fontFamily: "IBM Plex Mono, monospace" }}>
+                                                        <td data-label="Data" style={{ fontFamily: "IBM Plex Mono, monospace" }}>
                                                           {dataFormatada}
                                                         </td>
-                                                        <td style={{ color: "#6b6558" }}>
+                                                        <td data-label="Horário" style={{ color: "#6b6558" }}>
                                                           {horaFormatada}
                                                         </td>
-                                                        <td>
+                                                        <td data-label="Destino">
                                                           <strong>{r.local_nome}</strong>
                                                         </td>
-                                                        <td className="num" style={{ fontWeight: 700 }}>
+                                                        <td data-label="Quantidade" className="num" style={{ fontWeight: 700 }}>
                                                           {r.quantidade} quentinhas
                                                         </td>
-                                                        <td className="num" style={{ fontWeight: 600 }}>
+                                                        <td data-label="Taxa" className="num" style={{ fontWeight: 600 }}>
                                                           R$ {Number(r.custo).toFixed(2)}
                                                         </td>
-                                                        <td style={{ textAlign: "center" }}>
+                                                        <td data-label="Status" style={{ textAlign: "center" }}>
                                                           <span className="stamp ok" style={{ fontSize: 10, padding: "1px 6px" }}>
                                                             ENTREGUE
                                                           </span>
@@ -1651,7 +1633,7 @@ export default function Home() {
                         <span>Vendas e Faturamento por Ponto de Entrega</span>
                       </div>
                       <div className="table-container">
-                        <table>
+                        <table className="responsive-table">
                           <thead>
                             <tr>
                               <th>Ponto de Entrega (Local)</th>
@@ -1663,11 +1645,11 @@ export default function Home() {
                             {relatorio?.por_local && relatorio.por_local.length > 0 ? (
                               relatorio.por_local.map((l) => (
                                 <tr key={l.id}>
-                                  <td>
+                                  <td data-label="Ponto de Entrega">
                                     <strong>{l.nome}</strong>
                                   </td>
-                                  <td className="num">{l.quentinhas} un.</td>
-                                  <td className="num" style={{ fontWeight: 700, color: "var(--route-green)" }}>
+                                  <td data-label="Quentinhas" className="num">{l.quentinhas} un.</td>
+                                  <td data-label="Receita Gerada" className="num" style={{ fontWeight: 700, color: "var(--route-green)" }}>
                                     R$ {Number(l.receita).toFixed(2)}
                                   </td>
                                 </tr>
