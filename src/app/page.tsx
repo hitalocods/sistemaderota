@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo, useRef, Fragment } from "react";
+import { SearchableSelect } from "@/components/SearchableSelect";
 
 
 interface Usuario {
@@ -679,6 +680,27 @@ export default function Home() {
     };
   }, [rotas, motoboys]);
 
+  // Opções para busca rápida com lupa na Nova Rota
+  const locaisOptions = useMemo(() => {
+    return locais
+      .filter((l) => l.ativo)
+      .map((l) => ({
+        id: l.id,
+        nome: l.nome,
+        subtitulo: l.endereco ? `End: ${l.endereco}` : null,
+      }));
+  }, [locais]);
+
+  const motoboysOptions = useMemo(() => {
+    return motoboys
+      .filter((m) => m.ativo)
+      .map((m) => ({
+        id: m.id,
+        nome: m.nome,
+        subtitulo: m.whatsapp ? `Zap: ${m.whatsapp}` : null,
+      }));
+  }, [motoboys]);
+
   // Identificação do Motoboy ativo no simulador ou usuário logado
   const activeMotoId = useMemo(() => {
     if (usuario?.role === "motoboy") return usuario.id;
@@ -1109,41 +1131,25 @@ export default function Home() {
                       <div className="new-route">
                         <div className="panel-title">Nova rota</div>
                         <form onSubmit={handleCriarRota}>
-                          <div className="field">
-                            <label>Local de entrega</label>
-                            <select
-                              value={novaRotaLocalId}
-                              onChange={(e) => setNovaRotaLocalId(Number(e.target.value))}
-                              required
-                            >
-                              <option value="">Selecione...</option>
-                              {locais
-                                .filter((l) => l.ativo)
-                                .map((local) => (
-                                  <option key={local.id} value={local.id}>
-                                    {local.nome}
-                                  </option>
-                                ))}
-                            </select>
-                          </div>
+                          {/* Local com Lupa e Busca Dinâmica */}
+                          <SearchableSelect
+                            label="Local de entrega"
+                            placeholder="Buscar ou selecionar local..."
+                            options={locaisOptions}
+                            value={novaRotaLocalId}
+                            onChange={(id) => setNovaRotaLocalId(id)}
+                            required
+                          />
 
-                          <div className="field">
-                            <label>Motoboy responsável</label>
-                            <select
-                              value={novaRotaMotoboyId}
-                              onChange={(e) => setNovaRotaMotoboyId(Number(e.target.value))}
-                              required
-                            >
-                              <option value="">Selecione...</option>
-                              {motoboys
-                                .filter((m) => m.ativo)
-                                .map((moto) => (
-                                  <option key={moto.id} value={moto.id}>
-                                    {moto.nome}
-                                  </option>
-                                ))}
-                            </select>
-                          </div>
+                          {/* Motoboy com Lupa e Busca Dinâmica */}
+                          <SearchableSelect
+                            label="Motoboy responsável"
+                            placeholder="Buscar ou selecionar motoboy..."
+                            options={motoboysOptions}
+                            value={novaRotaMotoboyId}
+                            onChange={(id) => setNovaRotaMotoboyId(id)}
+                            required
+                          />
 
                           <div className="field">
                             <label>Quantidade de quentinhas</label>
