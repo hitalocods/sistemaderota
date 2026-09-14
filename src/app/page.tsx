@@ -35,10 +35,12 @@ interface Rota {
   status: "pendente" | "entregue" | "cancelada";
   receita: string | number;
   custo: string | number;
+  criado_em?: string | null;
   entregue_em: string | null;
   local_id: number;
   local_nome: string;
   local_endereco?: string | null;
+  local_contato?: string | null;
   motoboy_id: number;
   motoboy_nome: string;
   motoboy_whatsapp?: string | null;
@@ -82,6 +84,20 @@ interface Relatorio {
   };
 }
 
+interface AssinaturaInfo {
+  id: number;
+  cliente_nome: string;
+  valor_mensal: number;
+  status: "ativo" | "pendente" | "bloqueado";
+  bloqueado: boolean;
+  em_tolerancia: boolean;
+  dias_restantes: number;
+  dias_tolerancia: number;
+  vence_em: string;
+  pago_em: string | null;
+  link_pagamento: string;
+}
+
 function toLocalDateStr(d: Date = new Date()): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -93,6 +109,10 @@ export default function Home() {
   // Estado de Autenticação
   const [authChecking, setAuthChecking] = useState(true);
   const [usuario, setUsuario] = useState<Usuario | null>(null);
+
+  // Assinatura e Licença (PagBank - R$ 65/mês)
+  const [assinatura, setAssinatura] = useState<AssinaturaInfo | null>(null);
+  const [modalAssinaturaAberto, setModalAssinaturaAberto] = useState(false);
 
   // Formulário de Login Unificado (Apenas Senha)
   const [loginSenha, setLoginSenha] = useState("");
@@ -160,12 +180,30 @@ export default function Home() {
   // Simulação motoboy (usado apenas se admin alternar na demo)
   const [adminSimulatedMotoId, setAdminSimulatedMotoId] = useState<number | null>(null);
 
+  // Card de rota expandido no App do Motoboy
+  const [rotaCardExpandidaId, setRotaCardExpandidaId] = useState<number | null>(null);
+
   // Toast
   const [toast, setToast] = useState<string | null>(null);
 
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
+  }
+
+  // Consulta de Status da Assinatura / Licença (PagBank)
+  async function carregarAssinatura() {
+    try {
+      const res = await fetch("/api/assinatura");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.assinatura) {
+          setAssinatura(data.assinatura);
+        }
+      }
+    } catch (err) {
+      console.error("Erro ao carregar assinatura:", err);
+    }
   }
 
   // Checagem de Sessão Ativa
@@ -193,6 +231,7 @@ export default function Home() {
 
   useEffect(() => {
     verificarSessao();
+    carregarAssinatura();
   }, []);
 
   // Login Unificado (Apenas Senha)
@@ -249,6 +288,8 @@ export default function Home() {
   localIdRef.current = novaRotaLocalId;
   const motoIdRef = useRef(novaRotaMotoboyId);
   motoIdRef.current = novaRotaMotoboyId;
+  const adminSimulatedMotoIdRef = useRef(adminSimulatedMotoId);
+  adminSimulatedMotoIdRef.current = adminSimulatedMotoId;
   const dataFiltroRef = useRef(dataFiltro);
   dataFiltroRef.current = dataFiltro;
 
@@ -272,7 +313,10 @@ export default function Home() {
         setLocais(resLocais);
         if (!localIdRef.current) {
           const primeiroAtivo = resLocais.find((l: Local) => l.ativo);
-          if (primeiroAtivo) setNovaRotaLocalId(primeiroAtivo.id);
+          if (primeiroAtivo) {
+            setNovaRotaLocalId(primeiroAtivo.id);
+            localIdRef.current = primeiroAtivo.id;
+          }
         }
       }
 
@@ -280,12 +324,25 @@ export default function Home() {
         setMotoboys(resMotoboys);
         if (!motoIdRef.current) {
           const primeiroAtivo = resMotoboys.find((m: Motoboy) => m.ativo);
-          if (primeiroAtivo) setNovaRotaMotoboyId(primeiroAtivo.id);
+          if (primeiroAtivo) {
+            setNovaRotaMotoboyId(primeiroAtivo.id);
+            motoIdRef.current = primeiroAtivo.id;
+          }
         }
-        if (!adminSimulatedMotoId && resMotoboys.length > 0) {
+        setAdminSimulatedMotoId((prev) => {
+          // Se já existe um motoboy selecionado e ele ainda existe na lista retornada, mantém ele!
+          if (prev && resMotoboys.some((m: Motoboy) => m.id === prev)) {
+            adminSimulatedMotoIdRef.current = prev;
+            return prev;
+          }
+          if (adminSimulatedMotoIdRef.current && resMotoboys.some((m: Motoboy) => m.id === adminSimulatedMotoIdRef.current)) {
+            return adminSimulatedMotoIdRef.current;
+          }
           const primeiroAtivo = resMotoboys.find((m: Motoboy) => m.ativo);
-          if (primeiroAtivo) setAdminSimulatedMotoId(primeiroAtivo.id);
-        }
+          const escolhido = primeiroAtivo ? primeiroAtivo.id : (resMotoboys[0]?.id ?? null);
+          adminSimulatedMotoIdRef.current = escolhido;
+          return escolhido;
+        });
       }
 
       if (Array.isArray(resRotas)) {
@@ -750,6 +807,83 @@ export default function Home() {
       <div className="container">
         {/* ======================= PAINEL DA DONA (ADMIN) ======================= */}
         {currentView === "admin" && usuario.role === "admin" && (
+          assinatura?.bloqueado ? (
+            <div style={{ maxWidth: 520, margin: "40px auto 0" }}>
+              <div
+                className="panel-box"
+                style={{
+                  background: "#FFFDF9",
+                  border: "2px solid var(--stamp-red)",
+                  boxShadow: "6px 6px 0 var(--ink)",
+                  padding: "32px 24px",
+                  textAlign: "center",
+                }}
+              >
+                <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
+                <h2 style={{ margin: "0 0 10px", fontSize: 22, color: "var(--stamp-red)" }}>
+                  Acesso Temporariamente Suspenso
+                </h2>
+                <p style={{ fontSize: 14, color: "#6b6558", lineHeight: 1.5, margin: "0 0 20px" }}>
+                  A mensalidade de uso do sistema está pendente. Para continuar gerenciando rotas, entregas e relatórios normalmente, regularize sua assinatura.
+                </p>
+
+                <div
+                  style={{
+                    background: "#F7F3EA",
+                    border: "1px solid var(--line)",
+                    padding: "16px",
+                    marginBottom: 24,
+                    borderRadius: 4,
+                    textAlign: "left",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 13.5 }}>
+                    <span style={{ color: "#6b6558" }}>Plano:</span>
+                    <strong>Licença Quentinhas da Rê</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 13.5 }}>
+                    <span style={{ color: "#6b6558" }}>Valor mensal:</span>
+                    <strong style={{ fontSize: 16, color: "var(--ink)" }}>R$ {assinatura.valor_mensal.toFixed(2)}</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5 }}>
+                    <span style={{ color: "#6b6558" }}>Forma de cobrança:</span>
+                    <span>Débito Automático no Cartão</span>
+                  </div>
+                </div>
+
+                <a
+                  href={assinatura.link_pagamento}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn"
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    padding: "14px",
+                    fontSize: 15,
+                    fontWeight: 700,
+                    textDecoration: "none",
+                    marginBottom: 12,
+                    background: "var(--route-green)",
+                  }}
+                >
+                  💳 Regularizar Assinatura no Cartão (R$ {assinatura.valor_mensal.toFixed(2)})
+                </a>
+
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  style={{ width: "100%", padding: "10px", fontSize: 13 }}
+                  onClick={() => {
+                    carregarAssinatura();
+                    showToast("Verificando status da licença...");
+                  }}
+                >
+                  ↻ Já paguei / Atualizar liberação
+                </button>
+              </div>
+            </div>
+          ) : (
           <div>
             <div className="admin-header">
               <div className="brand">
@@ -789,6 +923,27 @@ export default function Home() {
                   onClick={() => setAdminTab("relatorios")}
                 >
                   Relatórios
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalAssinaturaAberto(true)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                  title="Consultar Licença Atlas"
+                >
+                  <span>Licença Atlas</span>
+                  {assinatura?.bloqueado ? (
+                    <span className="stamp cancel" style={{ fontSize: 9, padding: "1px 4px" }}>
+                      BLOQ
+                    </span>
+                  ) : assinatura?.em_tolerancia ? (
+                    <span className="stamp pend" style={{ fontSize: 9, padding: "1px 4px" }}>
+                      AVISO
+                    </span>
+                  ) : null}
                 </button>
               </nav>
 
@@ -1215,6 +1370,19 @@ export default function Home() {
                               </td>
                               <td data-label="Ações" className="actions-cell" style={{ textAlign: "right" }}>
                                 <div style={{ display: "inline-flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                                  <button
+                                    type="button"
+                                    className="btn-secondary"
+                                    style={{ fontSize: 11, background: "#fff" }}
+                                    title={`Abrir simulador do App com ${moto.nome}`}
+                                    onClick={() => {
+                                      adminSimulatedMotoIdRef.current = moto.id;
+                                      setAdminSimulatedMotoId(moto.id);
+                                      setCurrentView("moto");
+                                    }}
+                                  >
+                                    📱 Ver App
+                                  </button>
                                   <button
                                     className="btn-secondary"
                                     style={{ fontSize: 11 }}
@@ -1670,6 +1838,7 @@ export default function Home() {
               </div>
             </div>
           </div>
+          )
         )}
 
         {/* ======================= APP DO MOTOBOY ======================= */}
@@ -1680,13 +1849,17 @@ export default function Home() {
               <div className="phone-selector-bar">
                 <label style={{ fontSize: 13, color: "#6b6558" }}>Simular motoboy:</label>
                 <select
-                  style={{ padding: "6px 10px", border: "1px solid var(--line)" }}
+                  style={{ padding: "6px 12px", border: "1px solid var(--line)", borderRadius: 6, background: "#fff", fontWeight: 600, fontSize: 13 }}
                   value={adminSimulatedMotoId ?? ""}
-                  onChange={(e) => setAdminSimulatedMotoId(Number(e.target.value))}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    adminSimulatedMotoIdRef.current = val;
+                    setAdminSimulatedMotoId(val);
+                  }}
                 >
                   {motoboys.map((m) => (
                     <option key={m.id} value={m.id}>
-                      {m.nome}
+                      {m.nome} {!m.ativo ? "(Inativo)" : ""}
                     </option>
                   ))}
                 </select>
@@ -1724,10 +1897,27 @@ export default function Home() {
                   ) : (
                     rotasMotoboyAtivo.map((rota) => {
                       const isEntregue = rota.status === "entregue";
+                      const isExpandido = rotaCardExpandidaId === rota.id;
+
+                      const horaPassada = rota.criado_em
+                        ? new Date(rota.criado_em).toLocaleTimeString("pt-BR", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "—";
+
+                      const horaEntregue = rota.entregue_em
+                        ? new Date(rota.entregue_em).toLocaleTimeString("pt-BR", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : null;
+
                       return (
                         <div
                           key={rota.id}
-                          className={`stop ${isEntregue ? "delivered" : ""}`}
+                          className={`stop ${isEntregue ? "delivered" : ""} ${isExpandido ? "expanded" : ""}`}
+                          onClick={() => setRotaCardExpandidaId(isExpandido ? null : rota.id)}
                         >
                           <div className="stop-top">
                             <span className="loc">{rota.local_nome}</span>
@@ -1744,29 +1934,159 @@ export default function Home() {
                             </span>
                           </div>
 
-                          <div className="stop-meta">
-                            <span>Ponto de entrega indicado</span>
+                          {/* Dica / Botão de Expansão */}
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: isExpandido ? 10 : 12 }}>
+                            <span className="stop-expand-hint">
+                              {isExpandido ? "▲ Toque para ocultar detalhes" : "▼ Toque para ver endereço e telefone"}
+                            </span>
+                            <span style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11, color: "#8a8372" }}>
+                              Passada às {horaPassada}
+                            </span>
                           </div>
 
-                          {/* Botão de Entrega */}
-                          {!isEntregue ? (
-                            <button
-                              className="btn-delivery-action"
-                              onClick={() => handleAlterarStatusRota(rota.id, "entregue")}
+                          {/* Seção Expandida com Detalhes Completos */}
+                          {isExpandido && (
+                            <div
+                              className="stop-details-card"
+                              onClick={(e) => e.stopPropagation()}
                             >
-                              <span>✓ CONFIRMAR ENTREGA</span>
-                            </button>
-                          ) : (
-                            <div className="delivered-status-box">
-                              <span>✓ Entrega Concluída!</span>
-                              <button
-                                className="btn-undo-link"
-                                onClick={() => handleAlterarStatusRota(rota.id, "pendente")}
-                              >
-                                Desfazer
-                              </button>
+                              <div className="stop-details-field">
+                                <span className="stop-details-label">
+                                  📍 Endereço Completo:
+                                </span>
+                                <div className="stop-details-val" style={{ fontSize: 13.5 }}>
+                                  {rota.local_endereco || "Endereço não cadastrado"}
+                                </div>
+                                {rota.local_endereco && (
+                                  <a
+                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rota.local_endereco)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="btn-secondary"
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 4,
+                                      padding: "3px 8px",
+                                      fontSize: 11,
+                                      marginTop: 5,
+                                      textDecoration: "none",
+                                      color: "var(--ink)",
+                                    }}
+                                  >
+                                    🗺️ Abrir no GPS / Maps
+                                  </a>
+                                )}
+                              </div>
+
+                              <div className="stop-details-field">
+                                <span className="stop-details-label">
+                                  📞 Telefone / Contato do Local:
+                                </span>
+                                {rota.local_contato ? (
+                                  <div>
+                                    <div className="stop-details-val" style={{ fontSize: 13.5 }}>
+                                      {rota.local_contato}
+                                    </div>
+                                    <div style={{ display: "flex", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
+                                      <a
+                                        href={`tel:${rota.local_contato.replace(/\D/g, "")}`}
+                                        className="btn-secondary"
+                                        style={{
+                                          padding: "3px 8px",
+                                          fontSize: 11,
+                                          textDecoration: "none",
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: 4,
+                                        }}
+                                      >
+                                        📞 Ligar
+                                      </a>
+                                      {(() => {
+                                        const cleanPhone = rota.local_contato.replace(/\D/g, "");
+                                        const waPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
+                                        return (
+                                          <a
+                                            href={`https://wa.me/${waPhone}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="btn-secondary"
+                                            style={{
+                                              padding: "3px 8px",
+                                              fontSize: 11,
+                                              textDecoration: "none",
+                                              color: "#166534",
+                                              fontWeight: 600,
+                                              display: "inline-flex",
+                                              alignItems: "center",
+                                              gap: 4,
+                                            }}
+                                          >
+                                            💬 WhatsApp
+                                          </a>
+                                        );
+                                      })()}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span style={{ color: "#8a8372", fontSize: 12, fontStyle: "italic" }}>
+                                    Telefone não informado no cadastro
+                                  </span>
+                                )}
+                              </div>
+
+                              <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--line)", paddingTop: 8, marginTop: 8 }}>
+                                <div>
+                                  <span className="stop-details-label">
+                                    🕒 Horário que foi passada:
+                                  </span>
+                                  <span style={{ fontFamily: "IBM Plex Mono, monospace", fontWeight: 600, fontSize: 12.5 }}>
+                                    {horaPassada}
+                                  </span>
+                                </div>
+
+                                {horaEntregue && (
+                                  <div style={{ textAlign: "right" }}>
+                                    <span className="stop-details-label" style={{ color: "#166534", justifyContent: "flex-end" }}>
+                                      ✓ Entregue às:
+                                    </span>
+                                    <span style={{ fontFamily: "IBM Plex Mono, monospace", fontWeight: 700, fontSize: 12.5, color: "#166534" }}>
+                                      {horaEntregue}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           )}
+
+                          {/* Botão de Entrega */}
+                          <div onClick={(e) => e.stopPropagation()}>
+                            {!isEntregue ? (
+                              <button
+                                className="btn-delivery-action"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAlterarStatusRota(rota.id, "entregue");
+                                }}
+                              >
+                                <span>✓ CONFIRMAR ENTREGA</span>
+                              </button>
+                            ) : (
+                              <div className="delivered-status-box">
+                                <span>✓ Entrega Concluída! {horaEntregue ? `(${horaEntregue})` : ""}</span>
+                                <button
+                                  className="btn-undo-link"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAlterarStatusRota(rota.id, "pendente");
+                                  }}
+                                >
+                                  Desfazer
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       );
                     })
@@ -2029,6 +2349,125 @@ export default function Home() {
               >
                 {modalConfirmDelete.ativo ? "Inativar" : "Excluir da Página"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Detalhes da Assinatura (PagBank) */}
+      {modalAssinaturaAberto && assinatura && (
+        <div className="modal-overlay" onClick={() => setModalAssinaturaAberto(false)}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-row">
+              <h3>Licença Atlas</h3>
+              <button
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16 }}
+                onClick={() => setModalAssinaturaAberto(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ padding: "8px 0" }}>
+              <div
+                style={{
+                  background: "#F7F3EA",
+                  border: "1px solid var(--line)",
+                  padding: "14px",
+                  borderRadius: 4,
+                  marginBottom: 16,
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 13.5 }}>
+                  <span style={{ color: "#6b6558" }}>Status da licença:</span>
+                  <span
+                    className={`stamp ${
+                      assinatura.bloqueado ? "cancel" : assinatura.em_tolerancia ? "pend" : "ok"
+                    }`}
+                  >
+                    {assinatura.bloqueado
+                      ? "BLOQUEADO"
+                      : assinatura.em_tolerancia
+                      ? "EM TOLERÂNCIA"
+                      : "ATIVO (EM DIA)"}
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 13.5 }}>
+                  <span style={{ color: "#6b6558" }}>Valor da mensalidade:</span>
+                  <strong style={{ fontSize: 15 }}>R$ {assinatura.valor_mensal.toFixed(2)} / mês</strong>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 13.5 }}>
+                  <span style={{ color: "#6b6558" }}>Cobrança recorrente:</span>
+                  <span>Débito no Cartão de Crédito</span>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 13.5 }}>
+                  <span style={{ color: "#6b6558" }}>Dia de vencimento:</span>
+                  <strong>Todo dia 15</strong>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5 }}>
+                  <span style={{ color: "#6b6558" }}>Próxima renovação:</span>
+                  <strong>
+                    {assinatura.vence_em
+                      ? new Date(assinatura.vence_em).toLocaleDateString("pt-BR")
+                      : "15/10/2026"}{" "}
+                    ({assinatura.dias_restantes > 0 ? `${assinatura.dias_restantes} dias restantes` : "Vencido"})
+                  </strong>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: "#F7F3EA",
+                  border: "1px solid var(--line)",
+                  borderRadius: 4,
+                  padding: "12px 14px",
+                  marginBottom: 16,
+                  fontSize: 12.5,
+                  color: "#473d31",
+                  lineHeight: 1.45,
+                }}
+              >
+                <div style={{ fontWeight: 700, marginBottom: 4, color: "var(--ink)", display: "flex", alignItems: "center", gap: 5 }}>
+                  <span>ℹ️</span> Regras de Renovação e Cancelamento:
+                </div>
+                <div style={{ marginBottom: 6 }}>
+                  • O valor é debitado <strong>automaticamente todo mês</strong> no cartão cadastrado para manter o sistema sempre liberado.
+                </div>
+                <div>
+                  • Você pode cancelar a qualquer momento. Para <strong>evitar a cobrança automática do mês seguinte</strong>, solicite o cancelamento com pelo menos <strong>10 dias de antecedência</strong> do vencimento.
+                </div>
+              </div>
+
+              <div className="modal-footer-row" style={{ marginTop: 0 }}>
+                {/* BOTÃO DE PAGAMENTO (DESATIVADO TEMPORARIAMENTE - DESCOMENTE QUANDO QUISER REATIVAR)
+                <a
+                  href={assinatura.link_pagamento}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn"
+                  style={{
+                    textDecoration: "none",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: 13,
+                  }}
+                >
+                  💳 Gerenciar Assinatura / Cartão
+                </a>
+                */}
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setModalAssinaturaAberto(false)}
+                >
+                  Fechar
+                </button>
+              </div>
             </div>
           </div>
         </div>

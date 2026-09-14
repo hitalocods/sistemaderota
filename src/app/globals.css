@@ -287,7 +287,7 @@ nav.side {
     padding-right: 0;
     padding-bottom: 12px;
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 6px;
     width: 100%;
     margin-bottom: 6px;
@@ -296,7 +296,7 @@ nav.side {
   nav.side button {
     text-align: center;
     padding: 10px 4px;
-    font-size: 12.5px;
+    font-size: 12px;
     border-left: none;
     border-bottom: 3px solid transparent;
     border-radius: 4px;
@@ -312,7 +312,14 @@ nav.side {
   }
 }
 
-@media (max-width: 520px) {
+@media (max-width: 640px) {
+  nav.side {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+}
+
+@media (max-width: 440px) {
   nav.side {
     grid-template-columns: repeat(2, 1fr);
     gap: 6px;
@@ -1147,6 +1154,63 @@ td.num, th.num {
 
 .btn-undo-link:hover {
   color: var(--stamp-red);
+}
+
+/* Card Expansível de Detalhes da Rota do Motoboy */
+.stop {
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.stop:hover {
+  border-color: var(--kraft);
+}
+
+.stop.expanded {
+  border-color: var(--kraft);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.stop-expand-hint {
+  font-size: 11px;
+  color: #8a8372;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stop-details-card {
+  margin-top: 10px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  background: #FAF8F2;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.stop-details-field {
+  margin-bottom: 10px;
+}
+
+.stop-details-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #7a7364;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 3px;
+}
+
+.stop-details-val {
+  color: var(--ink);
+  font-weight: 600;
+  word-break: break-word;
 }
 
 .m-footnote {

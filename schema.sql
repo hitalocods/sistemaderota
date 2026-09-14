@@ -40,10 +40,17 @@ create index if not exists idx_rotas_data on rotas(data);
 create index if not exists idx_rotas_motoboy on rotas(motoboy_id, data);
 create index if not exists idx_rotas_local on rotas(local_id, data);
 
--- Seed de exemplo (apagar/ajustar depois)
--- insert into locais (nome, endereco, valor_unidade) values
---   ('Zona Norte — Mercadão', 'Entrada principal, banca 12', 8.00),
---   ('Centro — Praça Rio Branco', 'Em frente à banca de jornal', 8.50);
---
--- insert into motoboys (nome, login, senha_hash, valor_rota) values
---   ('Junior', 'junior', '<hash>', 6.00);
+-- Controle de Licença / Assinatura SaaS (PagBank)
+create table if not exists assinaturas (
+  id                  serial primary key,
+  cliente_nome        text not null default 'Dona Rê',
+  valor_mensal        numeric(10,2) not null default 65.00,
+  status              text not null default 'ativo', -- 'ativo', 'pendente', 'bloqueado'
+  pagbank_id          text,                          -- ID da assinatura ou transação no PagBank
+  link_pagamento      text,                          -- Link do PagBank para ela assinar / atualizar cartão
+  pago_em             timestamptz default now(),     -- Último pagamento aprovado
+  vence_em            timestamptz not null default (now() + interval '30 days'),
+  dias_tolerancia     integer not null default 3,
+  criado_em           timestamptz not null default now(),
+  atualizado_em       timestamptz not null default now()
+);
