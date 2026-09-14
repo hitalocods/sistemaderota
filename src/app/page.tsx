@@ -170,6 +170,20 @@ export default function Home() {
   const [editRotaQtd, setEditRotaQtd] = useState<number>(30);
   const [salvandoEdicaoRota, setSalvandoEdicaoRota] = useState(false);
 
+  // Modal de Edição de Local
+  const [modalEditarLocalAberto, setModalEditarLocalAberto] = useState(false);
+  const [localParaEditar, setLocalParaEditar] = useState<Local | null>(null);
+  const [editLocalNome, setEditLocalNome] = useState("");
+  const [editLocalClienteNome, setEditLocalClienteNome] = useState("");
+  const [editLocalEndereco, setEditLocalEndereco] = useState("");
+  const [editLocalEnderecoLink, setEditLocalEnderecoLink] = useState("");
+  const [editLocalContato, setEditLocalContato] = useState("");
+  const [editLocalValor, setEditLocalValor] = useState("8.50");
+  const [salvandoEdicaoLocal, setSalvandoEdicaoLocal] = useState(false);
+
+  // Busca rápida na aba de locais
+  const [termoBuscaLocais, setTermoBuscaLocais] = useState("");
+
   // Modal de Confirmação de Exclusão
   const [modalConfirmDelete, setModalConfirmDelete] = useState<{
     tipo: "local" | "motoboy";
@@ -563,6 +577,53 @@ export default function Home() {
   }
 
   // Ações Locais & Motoboys
+  function handleAbrirEditarLocal(l: Local) {
+    setLocalParaEditar(l);
+    setEditLocalNome(l.nome);
+    setEditLocalClienteNome(l.cliente_nome || "");
+    setEditLocalEndereco(l.endereco || "");
+    setEditLocalEnderecoLink(l.endereco_link || "");
+    setEditLocalContato(l.contato || "");
+    setEditLocalValor(String(l.valor_unidade));
+    setModalEditarLocalAberto(true);
+  }
+
+  async function handleSalvarEdicaoLocal(e: React.FormEvent) {
+    e.preventDefault();
+    if (!localParaEditar || !editLocalNome || !editLocalValor) return;
+
+    try {
+      setSalvandoEdicaoLocal(true);
+      const res = await fetch(`/api/locais/${localParaEditar.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nome: editLocalNome.trim(),
+          cliente_nome: editLocalClienteNome.trim() || null,
+          endereco: editLocalEndereco.trim() || null,
+          endereco_link: editLocalEnderecoLink.trim() || null,
+          contato: editLocalContato.trim() || null,
+          valor_unidade: parseFloat(editLocalValor),
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        showToast(err.error || "Erro ao editar local");
+        return;
+      }
+
+      showToast("✓ Local atualizado com sucesso!");
+      setModalEditarLocalAberto(false);
+      setLocalParaEditar(null);
+      carregarTudo(true);
+    } catch {
+      showToast("Erro ao conectar");
+    } finally {
+      setSalvandoEdicaoLocal(false);
+    }
+  }
+
   async function handleCriarLocal(e: React.FormEvent) {
     e.preventDefault();
     if (!novoLocalNome || !novoLocalValor) return;
@@ -765,6 +826,18 @@ export default function Home() {
         subtitulo: m.whatsapp ? `Zap: ${m.whatsapp}` : null,
       }));
   }, [motoboys]);
+
+  // Lista de locais filtrada para a aba Locais
+  const locaisFiltrados = useMemo(() => {
+    if (!termoBuscaLocais.trim()) return locais;
+    const q = termoBuscaLocais.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    return locais.filter((l) => {
+      const nomeNorm = (l.nome || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const cliNorm = (l.cliente_nome || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const endNorm = (l.endereco || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      return nomeNorm.includes(q) || cliNorm.includes(q) || endNorm.includes(q);
+    });
+  }, [locais, termoBuscaLocais]);
 
   // Identificação do Motoboy ativo no simulador ou usuário logado
   const activeMotoId = useMemo(() => {
@@ -1370,11 +1443,33 @@ export default function Home() {
                 {/* 2. ABA: LOCAIS */}
                 {adminTab === "locais" && (
                   <div>
-                    <div className="panel-title">
-                      <span>Gerenciamento de Locais</span>
-                      <button className="btn" onClick={() => setModalLocalAberto(true)}>
-                        + Adicionar local
-                      </button>
+                    <div className="panel-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                      <span>Gerenciamento de Locais ({locaisFiltrados.length})</span>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                        <div style={{ position: "relative", display: "flex", alignItems: "center", background: "#fff", border: "1px solid var(--line)" }}>
+                          <span style={{ padding: "0 6px 0 8px", color: "#8a8372", fontSize: 13 }}>🔍</span>
+                          <input
+                            type="text"
+                            placeholder="Buscar local, cliente..."
+                            value={termoBuscaLocais}
+                            onChange={(e) => setTermoBuscaLocais(e.target.value)}
+                            style={{ border: "none", outline: "none", padding: "6px 8px 6px 0", fontSize: 13, background: "transparent" }}
+                          />
+                          {termoBuscaLocais && (
+                            <button
+                              type="button"
+                              onClick={() => setTermoBuscaLocais("")}
+                              style={{ background: "none", border: "none", color: "#999", cursor: "pointer", padding: "0 6px", fontSize: 13 }}
+                              title="Limpar busca"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                        <button className="btn" onClick={() => setModalLocalAberto(true)}>
+                          + Adicionar local
+                        </button>
+                      </div>
                     </div>
                     <div className="table-container">
                       <table className="responsive-table">
@@ -1389,58 +1484,75 @@ export default function Home() {
                           </tr>
                         </thead>
                         <tbody>
-                          {locais.map((local) => (
-                            <tr key={local.id}>
-                              <td data-label="Local">
-                                <strong>{local.nome}</strong>
-                                {local.cliente_nome && (
-                                  <div style={{ fontSize: 11.5, color: "#6b6558", marginTop: 2 }}>
-                                    👤 {local.cliente_nome}
-                                  </div>
-                                )}
-                              </td>
-                              <td data-label="Endereço" style={{ color: "#6b6558" }}>
-                                {local.endereco || "—"}
-                                {local.endereco_link && (
-                                  <div style={{ marginTop: 3 }}>
-                                    <a
-                                      href={local.endereco_link}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      style={{ fontSize: 11, color: "var(--route-green)", textDecoration: "underline", display: "inline-flex", alignItems: "center", gap: 3 }}
-                                    >
-                                      🗺️ Link Maps / Waze
-                                    </a>
-                                  </div>
-                                )}
-                              </td>
-                              <td data-label="Contato">{local.contato || "—"}</td>
-                              <td data-label="Valor Unidade" className="num">
-                                R$ {Number(local.valor_unidade).toFixed(2)}
-                              </td>
-                              <td data-label="Status">
-                                <span className={`stamp ${local.ativo ? "ok" : "cancel"}`}>
-                                  {local.ativo ? "ATIVO" : "INATIVO"}
-                                </span>
-                              </td>
-                              <td data-label="Ações" className="actions-cell" style={{ textAlign: "right" }}>
-                                <button
-                                  className="btn-danger-link"
-                                  title={local.ativo ? "Inativar local" : "Excluir definitivamente da página"}
-                                  onClick={() =>
-                                    setModalConfirmDelete({
-                                      tipo: "local",
-                                      id: local.id,
-                                      nome: local.nome,
-                                      ativo: local.ativo,
-                                    })
-                                  }
-                                >
-                                  {local.ativo ? "Inativar" : "Excluir da página"}
-                                </button>
+                          {locaisFiltrados.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} style={{ textAlign: "center", padding: 24, color: "#8a8372" }}>
+                                {termoBuscaLocais ? `Nenhum local encontrado para "${termoBuscaLocais}".` : "Nenhum local cadastrado."}
                               </td>
                             </tr>
-                          ))}
+                          ) : (
+                            locaisFiltrados.map((local) => (
+                              <tr key={local.id}>
+                                <td data-label="Local">
+                                  <strong>{local.nome}</strong>
+                                  {local.cliente_nome && (
+                                    <div style={{ fontSize: 11.5, color: "#6b6558", marginTop: 2 }}>
+                                      👤 {local.cliente_nome}
+                                    </div>
+                                  )}
+                                </td>
+                                <td data-label="Endereço" style={{ color: "#6b6558" }}>
+                                  {local.endereco || "—"}
+                                  {local.endereco_link && (
+                                    <div style={{ marginTop: 3 }}>
+                                      <a
+                                        href={local.endereco_link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{ fontSize: 11, color: "var(--route-green)", textDecoration: "underline", display: "inline-flex", alignItems: "center", gap: 3 }}
+                                      >
+                                        🗺️ Link Maps / Waze
+                                      </a>
+                                    </div>
+                                  )}
+                                </td>
+                                <td data-label="Contato">{local.contato || "—"}</td>
+                                <td data-label="Valor Unidade" className="num">
+                                  R$ {Number(local.valor_unidade).toFixed(2)}
+                                </td>
+                                <td data-label="Status">
+                                  <span className={`stamp ${local.ativo ? "ok" : "cancel"}`}>
+                                    {local.ativo ? "ATIVO" : "INATIVO"}
+                                  </span>
+                                </td>
+                                <td data-label="Ações" className="actions-cell" style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                                  <button
+                                    type="button"
+                                    className="btn-secondary"
+                                    style={{ padding: "4px 8px", fontSize: 11, marginRight: 6 }}
+                                    title="Editar informações do local"
+                                    onClick={() => handleAbrirEditarLocal(local)}
+                                  >
+                                    ✏️ Editar
+                                  </button>
+                                  <button
+                                    className="btn-danger-link"
+                                    title={local.ativo ? "Inativar local" : "Excluir definitivamente da página"}
+                                    onClick={() =>
+                                      setModalConfirmDelete({
+                                        tipo: "local",
+                                        id: local.id,
+                                        nome: local.nome,
+                                        ativo: local.ativo,
+                                      })
+                                    }
+                                  >
+                                    {local.ativo ? "Inativar" : "Excluir da página"}
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -2337,6 +2449,94 @@ export default function Home() {
                 </button>
                 <button type="submit" className="btn">
                   Salvar Local
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Editar Local */}
+      {modalEditarLocalAberto && localParaEditar && (
+        <div className="modal-overlay" onClick={() => setModalEditarLocalAberto(false)}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-row">
+              <h3>Editar Local: {localParaEditar.nome}</h3>
+              <button
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16 }}
+                onClick={() => setModalEditarLocalAberto(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleSalvarEdicaoLocal}>
+              <div className="field">
+                <label>Nome do Local / Ponto</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Zona Leste — UFPI"
+                  value={editLocalNome}
+                  onChange={(e) => setEditLocalNome(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="field">
+                <label>Nome do cliente / Quem vai receber (opcional)</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Sr. Francinaldo, Cantina CCH..."
+                  value={editLocalClienteNome}
+                  onChange={(e) => setEditLocalClienteNome(e.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label>Endereço / Referência</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Prédio CCH, Cantina"
+                  value={editLocalEndereco}
+                  onChange={(e) => setEditLocalEndereco(e.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label>Link da Localização Maps / Waze (opcional)</label>
+                <input
+                  type="text"
+                  placeholder="Ex: https://maps.app.goo.gl/... ou link compartilhado"
+                  value={editLocalEnderecoLink}
+                  onChange={(e) => setEditLocalEnderecoLink(e.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label>Contato</label>
+                <input
+                  type="text"
+                  placeholder="(86) 99999-9999"
+                  value={editLocalContato}
+                  onChange={(e) => setEditLocalContato(e.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label>Valor cobrado por quentinha (R$)</label>
+                <input
+                  type="number"
+                  step="0.50"
+                  value={editLocalValor}
+                  onChange={(e) => setEditLocalValor(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="modal-footer-row">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setModalEditarLocalAberto(false)}
+                  disabled={salvandoEdicaoLocal}
+                >
+                  Cancelar
+                </button>
+                <button type="submit" className="btn" disabled={salvandoEdicaoLocal}>
+                  {salvandoEdicaoLocal ? "Salvando..." : "Salvar Alterações"}
                 </button>
               </div>
             </form>
