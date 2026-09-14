@@ -5,12 +5,14 @@ export async function PUT(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  const { nome, endereco, contato, valor_unidade, ativo } = await req.json();
+  const { nome, cliente_nome, endereco, endereco_link, contato, valor_unidade, ativo } = await req.json();
 
   const [local] = await sql`
     update locais set
       nome = coalesce(${nome}, nome),
+      cliente_nome = coalesce(${cliente_nome}, cliente_nome),
       endereco = coalesce(${endereco}, endereco),
+      endereco_link = coalesce(${endereco_link}, endereco_link),
       contato = coalesce(${contato}, contato),
       valor_unidade = coalesce(${valor_unidade}, valor_unidade),
       ativo = coalesce(${ativo}, ativo)

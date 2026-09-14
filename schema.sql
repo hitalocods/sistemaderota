@@ -3,7 +3,9 @@
 create table if not exists locais (
   id            serial primary key,
   nome          text not null,
+  cliente_nome  text,                             -- nome de quem recebe no local
   endereco      text,
+  endereco_link text,                             -- link direto do Google Maps / Waze
   contato       text,
   valor_unidade numeric(10,2) not null default 0, -- valor cobrado por quentinha nesse local (receita)
   ativo         boolean not null default true,

@@ -14,7 +14,9 @@ interface Usuario {
 interface Local {
   id: number;
   nome: string;
+  cliente_nome?: string | null;
   endereco: string | null;
+  endereco_link?: string | null;
   contato: string | null;
   valor_unidade: string | number;
   ativo: boolean;
@@ -40,7 +42,9 @@ interface Rota {
   entregue_em: string | null;
   local_id: number;
   local_nome: string;
+  local_cliente_nome?: string | null;
   local_endereco?: string | null;
+  local_endereco_link?: string | null;
   local_contato?: string | null;
   motoboy_id: number;
   motoboy_nome: string;
@@ -158,6 +162,14 @@ export default function Home() {
   const [motoboyParaSenha, setMotoboyParaSenha] = useState<Motoboy | null>(null);
   const [novaSenha, setNovaSenha] = useState("");
 
+  // Modal de Edição de Rota
+  const [modalEditarRotaAberto, setModalEditarRotaAberto] = useState(false);
+  const [rotaParaEditar, setRotaParaEditar] = useState<Rota | null>(null);
+  const [editRotaLocalId, setEditRotaLocalId] = useState<number | "">("");
+  const [editRotaMotoboyId, setEditRotaMotoboyId] = useState<number | "">("");
+  const [editRotaQtd, setEditRotaQtd] = useState<number>(30);
+  const [salvandoEdicaoRota, setSalvandoEdicaoRota] = useState(false);
+
   // Modal de Confirmação de Exclusão
   const [modalConfirmDelete, setModalConfirmDelete] = useState<{
     tipo: "local" | "motoboy";
@@ -168,7 +180,9 @@ export default function Home() {
 
   // Formulários Locais & Motoboys
   const [novoLocalNome, setNovoLocalNome] = useState("");
+  const [novoLocalClienteNome, setNovoLocalClienteNome] = useState("");
   const [novoLocalEndereco, setNovoLocalEndereco] = useState("");
+  const [novoLocalEnderecoLink, setNovoLocalEnderecoLink] = useState("");
   const [novoLocalContato, setNovoLocalContato] = useState("");
   const [novoLocalValor, setNovoLocalValor] = useState("8.50");
 
@@ -503,6 +517,51 @@ export default function Home() {
     }
   }
 
+  // Ações de Edição de Rota
+  function handleAbrirEditarRota(r: Rota) {
+    setRotaParaEditar(r);
+    setEditRotaLocalId(r.local_id);
+    setEditRotaMotoboyId(r.motoboy_id);
+    setEditRotaQtd(r.quantidade);
+    setModalEditarRotaAberto(true);
+  }
+
+  async function handleSalvarEdicaoRota(e: React.FormEvent) {
+    e.preventDefault();
+    if (!rotaParaEditar || !editRotaLocalId || !editRotaMotoboyId || !editRotaQtd) {
+      showToast("Preencha local, motoboy e quantidade!");
+      return;
+    }
+
+    try {
+      setSalvandoEdicaoRota(true);
+      const res = await fetch(`/api/rotas/${rotaParaEditar.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          local_id: Number(editRotaLocalId),
+          motoboy_id: Number(editRotaMotoboyId),
+          quantidade: Number(editRotaQtd),
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        showToast(err.error || "Erro ao editar rota");
+        return;
+      }
+
+      showToast("✓ Rota atualizada com sucesso!");
+      setModalEditarRotaAberto(false);
+      setRotaParaEditar(null);
+      await carregarTudo(true);
+    } catch {
+      showToast("Erro de rede ao editar rota");
+    } finally {
+      setSalvandoEdicaoRota(false);
+    }
+  }
+
   // Ações Locais & Motoboys
   async function handleCriarLocal(e: React.FormEvent) {
     e.preventDefault();
@@ -514,8 +573,10 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           nome: novoLocalNome,
-          endereco: novoLocalEndereco,
-          contato: novoLocalContato,
+          cliente_nome: novoLocalClienteNome.trim() || null,
+          endereco: novoLocalEndereco.trim() || null,
+          endereco_link: novoLocalEnderecoLink.trim() || null,
+          contato: novoLocalContato.trim() || null,
           valor_unidade: parseFloat(novoLocalValor),
         }),
       });
@@ -523,7 +584,9 @@ export default function Home() {
       if (res.ok) {
         showToast("✓ Local cadastrado com sucesso!");
         setNovoLocalNome("");
+        setNovoLocalClienteNome("");
         setNovoLocalEndereco("");
+        setNovoLocalEnderecoLink("");
         setNovoLocalContato("");
         setModalLocalAberto(false);
         carregarTudo(true);
@@ -586,7 +649,9 @@ export default function Home() {
     let msg = `🍱 *QUENTINHAS DA RÊ — NOVA ROTA* 🛵\n\n`;
     msg += `Olá *${r.motoboy_nome}*! Seguem os dados para entrega:\n\n`;
     msg += `📍 *Destino:* ${r.local_nome}\n`;
+    if (r.local_cliente_nome) msg += `👤 *Quem recebe:* ${r.local_cliente_nome}\n`;
     if (r.local_endereco) msg += `🏠 *Endereço:* ${r.local_endereco}\n`;
+    if (r.local_endereco_link) msg += `🗺️ *Localização no Mapa:* ${r.local_endereco_link}\n`;
     msg += `📦 *Carga:* ${r.quantidade} quentinhas\n`;
     msg += `💰 *Seu frete nesta rota:* R$ ${Number(r.custo).toFixed(2)}\n`;
     msg += `📅 *Data:* ${r.data}\n\n`;
@@ -1074,6 +1139,23 @@ export default function Home() {
                                   <tr key={rota.id}>
                                     <td data-label="Local">
                                       <strong>{rota.local_nome}</strong>
+                                      {rota.local_cliente_nome && (
+                                        <div style={{ fontSize: 11.5, color: "#6b6558", marginTop: 2 }}>
+                                          👤 {rota.local_cliente_nome}
+                                        </div>
+                                      )}
+                                      {rota.local_endereco_link && (
+                                        <div style={{ marginTop: 2 }}>
+                                          <a
+                                            href={rota.local_endereco_link}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            style={{ fontSize: 11, color: "var(--route-green)", textDecoration: "underline", display: "inline-flex", alignItems: "center", gap: 3 }}
+                                          >
+                                            🗺️ Abrir Mapa
+                                          </a>
+                                        </div>
+                                      )}
                                     </td>
                                     <td data-label="Motoboy">{rota.motoboy_nome}</td>
                                     <td data-label="Quantidade" className="num">{rota.quantidade} un.</td>
@@ -1099,6 +1181,15 @@ export default function Home() {
                                           onClick={() => handleEnviarRotaWhatsApp(rota)}
                                         >
                                           <span>💬</span> Zap
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="btn-secondary"
+                                          style={{ padding: "4px 8px", fontSize: 11 }}
+                                          title="Editar local, entregador ou quantidade da rota"
+                                          onClick={() => handleAbrirEditarRota(rota)}
+                                        >
+                                          ✏️ Editar
                                         </button>
                                         {rota.status === "pendente" ? (
                                           <button
@@ -1302,8 +1393,27 @@ export default function Home() {
                             <tr key={local.id}>
                               <td data-label="Local">
                                 <strong>{local.nome}</strong>
+                                {local.cliente_nome && (
+                                  <div style={{ fontSize: 11.5, color: "#6b6558", marginTop: 2 }}>
+                                    👤 {local.cliente_nome}
+                                  </div>
+                                )}
                               </td>
-                              <td data-label="Endereço" style={{ color: "#6b6558" }}>{local.endereco || "—"}</td>
+                              <td data-label="Endereço" style={{ color: "#6b6558" }}>
+                                {local.endereco || "—"}
+                                {local.endereco_link && (
+                                  <div style={{ marginTop: 3 }}>
+                                    <a
+                                      href={local.endereco_link}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{ fontSize: 11, color: "var(--route-green)", textDecoration: "underline", display: "inline-flex", alignItems: "center", gap: 3 }}
+                                    >
+                                      🗺️ Link Maps / Waze
+                                    </a>
+                                  </div>
+                                )}
+                              </td>
                               <td data-label="Contato">{local.contato || "—"}</td>
                               <td data-label="Valor Unidade" className="num">
                                 R$ {Number(local.valor_unidade).toFixed(2)}
@@ -1956,14 +2066,47 @@ export default function Home() {
                               className="stop-details-card"
                               onClick={(e) => e.stopPropagation()}
                             >
+                              {rota.local_cliente_nome && (
+                                <div className="stop-details-field">
+                                  <span className="stop-details-label">
+                                    👤 Quem vai receber:
+                                  </span>
+                                  <div className="stop-details-val" style={{ fontSize: 14, fontWeight: 700, color: "var(--kraft-dark)" }}>
+                                    {rota.local_cliente_nome}
+                                  </div>
+                                </div>
+                              )}
+
                               <div className="stop-details-field">
                                 <span className="stop-details-label">
-                                  📍 Endereço Completo:
+                                  📍 Endereço de Entrega:
                                 </span>
                                 <div className="stop-details-val" style={{ fontSize: 13.5 }}>
                                   {rota.local_endereco || "Endereço não cadastrado"}
                                 </div>
-                                {rota.local_endereco && (
+                                {rota.local_endereco_link ? (
+                                  <a
+                                    href={rota.local_endereco_link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="btn"
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 6,
+                                      padding: "7px 12px",
+                                      fontSize: 12.5,
+                                      fontWeight: 600,
+                                      marginTop: 8,
+                                      textDecoration: "none",
+                                      background: "var(--route-green)",
+                                      color: "#fff",
+                                      borderRadius: 3,
+                                    }}
+                                  >
+                                    🗺️ Abrir Localização no Maps / Waze
+                                  </a>
+                                ) : rota.local_endereco ? (
                                   <a
                                     href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rota.local_endereco)}`}
                                     target="_blank"
@@ -1973,16 +2116,16 @@ export default function Home() {
                                       display: "inline-flex",
                                       alignItems: "center",
                                       gap: 4,
-                                      padding: "3px 8px",
-                                      fontSize: 11,
-                                      marginTop: 5,
+                                      padding: "4px 9px",
+                                      fontSize: 11.5,
+                                      marginTop: 6,
                                       textDecoration: "none",
                                       color: "var(--ink)",
                                     }}
                                   >
                                     🗺️ Abrir no GPS / Maps
                                   </a>
-                                )}
+                                ) : null}
                               </div>
 
                               <div className="stop-details-field">
@@ -2139,12 +2282,30 @@ export default function Home() {
                 />
               </div>
               <div className="field">
+                <label>Nome do cliente / Quem vai receber (opcional)</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Sr. Francinaldo, Cantina CCH..."
+                  value={novoLocalClienteNome}
+                  onChange={(e) => setNovoLocalClienteNome(e.target.value)}
+                />
+              </div>
+              <div className="field">
                 <label>Endereço / Referência</label>
                 <input
                   type="text"
                   placeholder="Ex: Prédio CCH, Cantina"
                   value={novoLocalEndereco}
                   onChange={(e) => setNovoLocalEndereco(e.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label>Link da Localização Maps / Waze (opcional)</label>
+                <input
+                  type="text"
+                  placeholder="Ex: https://maps.app.goo.gl/... ou link compartilhado"
+                  value={novoLocalEnderecoLink}
+                  onChange={(e) => setNovoLocalEnderecoLink(e.target.value)}
                 />
               </div>
               <div className="field">
@@ -2356,6 +2517,67 @@ export default function Home() {
                 {modalConfirmDelete.ativo ? "Inativar" : "Excluir da Página"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Editar Rota Despachada */}
+      {modalEditarRotaAberto && rotaParaEditar && (
+        <div className="modal-overlay" onClick={() => setModalEditarRotaAberto(false)}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-row">
+              <h3>Editar Rota #{rotaParaEditar.id}</h3>
+              <button
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16 }}
+                onClick={() => setModalEditarRotaAberto(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleSalvarEdicaoRota}>
+              <SearchableSelect
+                label="Local de entrega"
+                placeholder="Buscar ou selecionar local..."
+                options={locaisOptions}
+                value={editRotaLocalId}
+                onChange={(id) => setEditRotaLocalId(id)}
+                required
+              />
+
+              <SearchableSelect
+                label="Motoboy responsável"
+                placeholder="Buscar ou selecionar motoboy..."
+                options={motoboysOptions}
+                value={editRotaMotoboyId}
+                onChange={(id) => setEditRotaMotoboyId(id)}
+                required
+              />
+
+              <div className="field">
+                <label>Quantidade de quentinhas</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={editRotaQtd}
+                  onChange={(e) => setEditRotaQtd(parseInt(e.target.value) || 0)}
+                  required
+                />
+              </div>
+
+              <div className="modal-footer-row">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setModalEditarRotaAberto(false)}
+                  disabled={salvandoEdicaoRota}
+                >
+                  Cancelar
+                </button>
+                <button type="submit" className="btn" disabled={salvandoEdicaoRota}>
+                  {salvandoEdicaoRota ? "Salvando..." : "Salvar Alterações"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

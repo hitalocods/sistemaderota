@@ -20,6 +20,7 @@ export async function GET(req: Request) {
         r.id, r.data, r.quantidade, r.status, r.receita, r.custo,
         r.criado_em, r.entregue_em,
         l.id as local_id, coalesce(l.nome, 'Local arquivado') as local_nome, 
+        l.cliente_nome as local_cliente_nome, l.endereco_link as local_endereco_link,
         l.endereco as local_endereco, l.contato as local_contato,
         m.id as motoboy_id, coalesce(m.nome, 'Motoboy arquivado') as motoboy_nome, m.whatsapp as motoboy_whatsapp
       from rotas r

@@ -11,7 +11,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { nome, endereco, contato, valor_unidade } = await req.json();
+  const { nome, cliente_nome, endereco, endereco_link, contato, valor_unidade } = await req.json();
 
   if (!nome || valor_unidade === undefined) {
     return NextResponse.json(
@@ -21,8 +21,15 @@ export async function POST(req: Request) {
   }
 
   const [local] = await sql`
-    insert into locais (nome, endereco, contato, valor_unidade)
-    values (${nome}, ${endereco ?? null}, ${contato ?? null}, ${valor_unidade})
+    insert into locais (nome, cliente_nome, endereco, endereco_link, contato, valor_unidade)
+    values (
+      ${nome}, 
+      ${cliente_nome && typeof cliente_nome === "string" && cliente_nome.trim() !== "" ? cliente_nome.trim() : null}, 
+      ${endereco ?? null}, 
+      ${endereco_link && typeof endereco_link === "string" && endereco_link.trim() !== "" ? endereco_link.trim() : null}, 
+      ${contato ?? null}, 
+      ${valor_unidade}
+    )
     returning *
   `;
 
