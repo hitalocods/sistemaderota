@@ -34,8 +34,14 @@ create table if not exists rotas (
   status        text not null default 'pendente' check (status in ('pendente', 'entregue', 'cancelada')),
   receita       numeric(10,2) not null default 0, -- quantidade * valor_unidade do local (snapshot no momento da criação)
   custo         numeric(10,2) not null default 0, -- valor_rota do motoboy (snapshot no momento da criação)
-  criado_em     timestamptz not null default now(),
-  entregue_em   timestamptz
+  criado_em             timestamptz not null default now(),
+  entregue_em           timestamptz,
+  carga_conferida       boolean not null default false,
+  carga_conferida_em    timestamptz,
+  ajuste_quantidade     integer,
+  ajuste_status         text check (ajuste_status in ('pendente', 'aprovado', 'recusado')),
+  ajuste_solicitado_em  timestamptz,
+  ajuste_respondido_em  timestamptz
 );
 
 create index if not exists idx_rotas_data on rotas(data);

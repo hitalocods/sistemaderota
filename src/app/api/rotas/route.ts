@@ -19,6 +19,8 @@ export async function GET(req: Request) {
       select
         r.id, r.data, r.quantidade, r.status, r.receita, r.custo,
         r.criado_em, r.entregue_em,
+        r.carga_conferida, r.carga_conferida_em,
+        r.ajuste_quantidade, r.ajuste_status, r.ajuste_solicitado_em, r.ajuste_respondido_em,
         l.id as local_id, coalesce(l.nome, 'Local arquivado') as local_nome, 
         l.cliente_nome as local_cliente_nome, l.endereco_link as local_endereco_link,
         l.endereco as local_endereco, l.contato as local_contato,

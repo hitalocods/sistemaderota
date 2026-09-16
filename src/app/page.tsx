@@ -49,6 +49,12 @@ interface Rota {
   motoboy_id: number;
   motoboy_nome: string;
   motoboy_whatsapp?: string | null;
+  ajuste_quantidade?: number | null;
+  ajuste_status?: "pendente" | "aprovado" | "recusado" | null;
+  ajuste_solicitado_em?: string | null;
+  ajuste_respondido_em?: string | null;
+  carga_conferida?: boolean;
+  carga_conferida_em?: string | null;
 }
 
 interface RotaDetalhada {
@@ -170,6 +176,10 @@ export default function Home() {
   const [editRotaQtd, setEditRotaQtd] = useState<number>(30);
   const [salvandoEdicaoRota, setSalvandoEdicaoRota] = useState(false);
 
+  // Modal de Exclusão de Rota
+  const [modalExcluirRota, setModalExcluirRota] = useState<Rota | null>(null);
+  const [excluindoRota, setExcluindoRota] = useState(false);
+
   // Modal de Edição de Local
   const [modalEditarLocalAberto, setModalEditarLocalAberto] = useState(false);
   const [localParaEditar, setLocalParaEditar] = useState<Local | null>(null);
@@ -211,6 +221,13 @@ export default function Home() {
 
   // Card de rota expandido no App do Motoboy
   const [rotaCardExpandidaId, setRotaCardExpandidaId] = useState<number | null>(null);
+
+  // Sub-aba do Motoboy: 'resumo' (Resumo de Carga / Placas) ou 'roteiro' (Roteiro de Entregas)
+  const [motoSubTab, setMotoSubTab] = useState<"resumo" | "roteiro">("resumo");
+  // Controle de ajuste de quantidade na conferência de placas
+  const [ajustandoRotaId, setAjustandoRotaId] = useState<number | null>(null);
+  const [valorAjusteTemp, setValorAjusteTemp] = useState<number>(0);
+  const [enviandoAjusteId, setEnviandoAjusteId] = useState<number | null>(null);
 
   // Toast
   const [toast, setToast] = useState<string | null>(null);
@@ -576,6 +593,166 @@ export default function Home() {
     }
   }
 
+  // Ação de Exclusão de Rota (Dona Rê)
+  async function handleConfirmarExcluirRota(id: number) {
+    try {
+      setExcluindoRota(true);
+      const res = await fetch(`/api/rotas/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        showToast(err.error || "Erro ao excluir rota");
+        return;
+      }
+
+      showToast("✓ Rota excluída com sucesso!");
+      setModalExcluirRota(null);
+      setModalEditarRotaAberto(false);
+      setRotaParaEditar(null);
+      await carregarTudo(true);
+    } catch {
+      showToast("Erro de rede ao excluir rota");
+    } finally {
+      setExcluindoRota(false);
+    }
+  }
+
+  // Ações de Ajuste de Carga / Conferência de Placas
+  async function handleSolicitarAjuste(rotaId: number, novaQtd: number) {
+    if (!novaQtd || novaQtd <= 0) {
+      showToast("A quantidade contada deve ser maior que zero!");
+      return;
+    }
+
+    try {
+      setEnviandoAjusteId(rotaId);
+      const res = await fetch(`/api/rotas/${rotaId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          acao: "solicitar_ajuste",
+          ajuste_quantidade: novaQtd,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        showToast(err.error || "Erro ao solicitar alteração");
+        return;
+      }
+
+      showToast("✓ Alteração enviada para confirmação da Dona Rê!");
+      setAjustandoRotaId(null);
+      await carregarTudo(true);
+    } catch {
+      showToast("Erro de rede ao enviar alteração");
+    } finally {
+      setEnviandoAjusteId(null);
+    }
+  }
+
+  async function handleCancelarAjuste(rotaId: number) {
+    try {
+      setEnviandoAjusteId(rotaId);
+      const res = await fetch(`/api/rotas/${rotaId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acao: "cancelar_ajuste" }),
+      });
+
+      if (!res.ok) {
+        showToast("Erro ao cancelar alteração");
+        return;
+      }
+
+      showToast("Pedido de alteração cancelado.");
+      await carregarTudo(true);
+    } catch {
+      showToast("Erro de rede ao cancelar alteração");
+    } finally {
+      setEnviandoAjusteId(null);
+    }
+  }
+
+  async function handleAprovarAjuste(rotaId: number) {
+    try {
+      setEnviandoAjusteId(rotaId);
+      const res = await fetch(`/api/rotas/${rotaId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acao: "aprovar_ajuste" }),
+      });
+
+      if (!res.ok) {
+        showToast("Erro ao aprovar alteração");
+        return;
+      }
+
+      showToast("✓ Alteração confirmada e quantidade atualizada!");
+      await carregarTudo(true);
+    } catch {
+      showToast("Erro de rede ao aprovar");
+    } finally {
+      setEnviandoAjusteId(null);
+    }
+  }
+
+  async function handleRecusarAjuste(rotaId: number) {
+    try {
+      setEnviandoAjusteId(rotaId);
+      const res = await fetch(`/api/rotas/${rotaId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acao: "recusar_ajuste" }),
+      });
+
+      if (!res.ok) {
+        showToast("Erro ao recusar alteração");
+        return;
+      }
+
+      showToast("Alteração recusada (quantidade original mantida).");
+      await carregarTudo(true);
+    } catch {
+      showToast("Erro de rede ao recusar");
+    } finally {
+      setEnviandoAjusteId(null);
+    }
+  }
+
+  // Ação de OK / Conferência de Carga (Placas) pelo Entregador
+  async function handleToggleConferirCarga(id: number, novoStatus: boolean) {
+    try {
+      setRotas((prev) =>
+        prev.map((r) =>
+          r.id === id
+            ? { ...r, carga_conferida: novoStatus, carga_conferida_em: novoStatus ? new Date().toISOString() : null }
+            : r
+        )
+      );
+
+      const res = await fetch(`/api/rotas/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acao: "conferir_carga", conferido: novoStatus }),
+      });
+
+      if (!res.ok) {
+        showToast("Erro ao confirmar carga");
+        carregarTudo(true);
+        return;
+      }
+
+      showToast(novoStatus ? "✓ Carga confirmada (OK)!" : "Conferência desfeita");
+      carregarTudo(true);
+    } catch {
+      showToast("Erro ao conectar");
+      carregarTudo(true);
+    }
+  }
+
   // Ações Locais & Motoboys
   function handleAbrirEditarLocal(l: Local) {
     setLocalParaEditar(l);
@@ -849,6 +1026,11 @@ export default function Home() {
     if (!activeMotoId) return [];
     return rotas.filter((r) => r.motoboy_id === activeMotoId);
   }, [rotas, activeMotoId]);
+
+  // Lista de solicitações de alteração pendentes de aprovação pela Dona
+  const ajustesPendentes = useMemo(() => {
+    return rotas.filter((r) => r.ajuste_status === "pendente");
+  }, [rotas]);
 
   const motoboyAtivoObj = motoboys.find((m) => m.id === activeMotoId);
 
@@ -1231,7 +1413,44 @@ export default function Home() {
                                       )}
                                     </td>
                                     <td data-label="Motoboy">{rota.motoboy_nome}</td>
-                                    <td data-label="Quantidade" className="num">{rota.quantidade} un.</td>
+                                    <td data-label="Quantidade" className="num">
+                                      <div><strong>{rota.quantidade} un.</strong></div>
+                                      <div style={{ marginTop: 3 }}>
+                                        {rota.carga_conferida ? (
+                                          <span
+                                            style={{
+                                              background: "#DCFCE7",
+                                              color: "#166534",
+                                              border: "1px solid #86EFAC",
+                                              fontSize: 10.5,
+                                              fontWeight: 700,
+                                              padding: "2px 6px",
+                                              borderRadius: 4,
+                                              display: "inline-block",
+                                            }}
+                                            title={`Placa conferida pelo motoboy${rota.carga_conferida_em ? ` às ${new Date(rota.carga_conferida_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : ""}`}
+                                          >
+                                            ✓ Placa OK
+                                          </span>
+                                        ) : (
+                                          <span
+                                            style={{
+                                              background: "#F3F4F6",
+                                              color: "#6B7280",
+                                              border: "1px solid #E5E7EB",
+                                              fontSize: 10,
+                                              fontWeight: 500,
+                                              padding: "2px 5px",
+                                              borderRadius: 4,
+                                              display: "inline-block",
+                                            }}
+                                            title="Aguardando o motoboy confirmar a placa"
+                                          >
+                                            Aguardando OK
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
                                     <td data-label="Status">
                                       <span
                                         className={`stamp ${
@@ -1281,6 +1500,15 @@ export default function Home() {
                                             ↺ Reabrir
                                           </button>
                                         ) : null}
+                                        <button
+                                          type="button"
+                                          className="btn-secondary"
+                                          style={{ padding: "4px 8px", fontSize: 11, color: "#991B1B", borderColor: "#FCA5A5" }}
+                                          title="Excluir rota (criada errada ou cancelada pelo cliente)"
+                                          onClick={() => setModalExcluirRota(rota)}
+                                        >
+                                          🗑️
+                                        </button>
                                       </div>
                                     </td>
                                   </tr>
@@ -2117,245 +2345,424 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="stop-list">
-                  {rotasMotoboyAtivo.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "40px 16px", color: "#8a8372" }}>
-                      Nenhuma rota pendente para você no momento.
-                    </div>
-                  ) : (
-                    rotasMotoboyAtivo.map((rota) => {
-                      const isEntregue = rota.status === "entregue";
-                      const isExpandido = rotaCardExpandidaId === rota.id;
-
-                      const horaPassada = rota.criado_em
-                        ? new Date(rota.criado_em).toLocaleTimeString("pt-BR", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
-                        : "—";
-
-                      const horaEntregue = rota.entregue_em
-                        ? new Date(rota.entregue_em).toLocaleTimeString("pt-BR", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
-                        : null;
-
-                      return (
-                        <div
-                          key={rota.id}
-                          className={`stop ${isEntregue ? "delivered" : ""} ${isExpandido ? "expanded" : ""}`}
-                          onClick={() => setRotaCardExpandidaId(isExpandido ? null : rota.id)}
-                        >
-                          <div className="stop-top">
-                            <span className="loc">{rota.local_nome}</span>
-                            <span className={`stamp ${isEntregue ? "ok" : "pend"}`}>
-                              {rota.status}
-                            </span>
-                          </div>
-
-                          {/* Destaque de Quantidade */}
-                          <div className="m-qty-badge">
-                            <span>Quantidade para entrega:</span>
-                            <span className="num-highlight">
-                              {rota.quantidade} un.
-                            </span>
-                          </div>
-
-                          {/* Dica / Botão de Expansão */}
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: isExpandido ? 10 : 12 }}>
-                            <span className="stop-expand-hint">
-                              {isExpandido ? "▲ Toque para ocultar detalhes" : "▼ Toque para ver endereço e telefone"}
-                            </span>
-                            <span style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11, color: "#8a8372" }}>
-                              Passada às {horaPassada}
-                            </span>
-                          </div>
-
-                          {/* Seção Expandida com Detalhes Completos */}
-                          {isExpandido && (
-                            <div
-                              className="stop-details-card"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {rota.local_cliente_nome && (
-                                <div className="stop-details-field">
-                                  <span className="stop-details-label">
-                                    👤 Quem vai receber:
-                                  </span>
-                                  <div className="stop-details-val" style={{ fontSize: 14, fontWeight: 700, color: "var(--kraft-dark)" }}>
-                                    {rota.local_cliente_nome}
-                                  </div>
-                                </div>
-                              )}
-
-                              <div className="stop-details-field">
-                                <span className="stop-details-label">
-                                  📍 Endereço de Entrega:
-                                </span>
-                                <div className="stop-details-val" style={{ fontSize: 13.5 }}>
-                                  {rota.local_endereco || "Endereço não cadastrado"}
-                                </div>
-                                {rota.local_endereco_link ? (
-                                  <a
-                                    href={rota.local_endereco_link}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="btn"
-                                    style={{
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      gap: 6,
-                                      padding: "7px 12px",
-                                      fontSize: 12.5,
-                                      fontWeight: 600,
-                                      marginTop: 8,
-                                      textDecoration: "none",
-                                      background: "var(--route-green)",
-                                      color: "#fff",
-                                      borderRadius: 3,
-                                    }}
-                                  >
-                                    🗺️ Abrir Localização no Maps / Waze
-                                  </a>
-                                ) : rota.local_endereco ? (
-                                  <a
-                                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rota.local_endereco)}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="btn-secondary"
-                                    style={{
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      gap: 4,
-                                      padding: "4px 9px",
-                                      fontSize: 11.5,
-                                      marginTop: 6,
-                                      textDecoration: "none",
-                                      color: "var(--ink)",
-                                    }}
-                                  >
-                                    🗺️ Abrir no GPS / Maps
-                                  </a>
-                                ) : null}
-                              </div>
-
-                              <div className="stop-details-field">
-                                <span className="stop-details-label">
-                                  📞 Telefone / Contato do Local:
-                                </span>
-                                {rota.local_contato ? (
-                                  <div>
-                                    <div className="stop-details-val" style={{ fontSize: 13.5 }}>
-                                      {rota.local_contato}
-                                    </div>
-                                    <div style={{ display: "flex", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
-                                      <a
-                                        href={`tel:${rota.local_contato.replace(/\D/g, "")}`}
-                                        className="btn-secondary"
-                                        style={{
-                                          padding: "3px 8px",
-                                          fontSize: 11,
-                                          textDecoration: "none",
-                                          display: "inline-flex",
-                                          alignItems: "center",
-                                          gap: 4,
-                                        }}
-                                      >
-                                        📞 Ligar
-                                      </a>
-                                      {(() => {
-                                        const cleanPhone = rota.local_contato.replace(/\D/g, "");
-                                        const waPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
-                                        return (
-                                          <a
-                                            href={`https://wa.me/${waPhone}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="btn-secondary"
-                                            style={{
-                                              padding: "3px 8px",
-                                              fontSize: 11,
-                                              textDecoration: "none",
-                                              color: "#166534",
-                                              fontWeight: 600,
-                                              display: "inline-flex",
-                                              alignItems: "center",
-                                              gap: 4,
-                                            }}
-                                          >
-                                            💬 WhatsApp
-                                          </a>
-                                        );
-                                      })()}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <span style={{ color: "#8a8372", fontSize: 12, fontStyle: "italic" }}>
-                                    Telefone não informado no cadastro
-                                  </span>
-                                )}
-                              </div>
-
-                              <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--line)", paddingTop: 8, marginTop: 8 }}>
-                                <div>
-                                  <span className="stop-details-label">
-                                    🕒 Horário que foi passada:
-                                  </span>
-                                  <span style={{ fontFamily: "IBM Plex Mono, monospace", fontWeight: 600, fontSize: 12.5 }}>
-                                    {horaPassada}
-                                  </span>
-                                </div>
-
-                                {horaEntregue && (
-                                  <div style={{ textAlign: "right" }}>
-                                    <span className="stop-details-label" style={{ color: "#166534", justifyContent: "flex-end" }}>
-                                      ✓ Entregue às:
-                                    </span>
-                                    <span style={{ fontFamily: "IBM Plex Mono, monospace", fontWeight: 700, fontSize: 12.5, color: "#166534" }}>
-                                      {horaEntregue}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Botão de Entrega */}
-                          <div onClick={(e) => e.stopPropagation()}>
-                            {!isEntregue ? (
-                              <button
-                                className="btn-delivery-action"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleAlterarStatusRota(rota.id, "entregue");
-                                }}
-                              >
-                                <span>✓ CONFIRMAR ENTREGA</span>
-                              </button>
-                            ) : (
-                              <div className="delivered-status-box">
-                                <span>✓ Entrega Concluída! {horaEntregue ? `(${horaEntregue})` : ""}</span>
-                                <button
-                                  className="btn-undo-link"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleAlterarStatusRota(rota.id, "pendente");
-                                  }}
-                                >
-                                  Desfazer
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
+                {/* Sub-Abas do Entregador: Resumo de Carga (Placas) vs Roteiro de Entregas */}
+                <div className="m-subtabs-wrap">
+                  <button
+                    type="button"
+                    className={`m-subtab-btn ${motoSubTab === "resumo" ? "active" : ""}`}
+                    onClick={() => setMotoSubTab("resumo")}
+                  >
+                    <span>📋 Resumo de Carga (Placas)</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`m-subtab-btn ${motoSubTab === "roteiro" ? "active" : ""}`}
+                    onClick={() => setMotoSubTab("roteiro")}
+                  >
+                    <span>🛵 Roteiro de Entregas</span>
+                  </button>
                 </div>
 
+                {/* 1. ABA: RESUMO DE CARGA EM LISTA (PLACAS) */}
+                {motoSubTab === "resumo" && (
+                  <div className="stop-list">
+                    <div
+                      style={{
+                        background: "#FFFDF9",
+                        border: "1px solid var(--line)",
+                        borderRadius: 8,
+                        padding: "10px 12px",
+                        marginBottom: 12,
+                        fontSize: 12.5,
+                        color: "#6b6558",
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      🍱 <strong>Conferência de Placas:</strong> Veja a lista de locais e a quantidade de quentinhas a levar. Ao conferir e colocar as placas na moto, toque no botão <strong>OK</strong> para confirmar que pegou a carga.
+                    </div>
+
+                    {rotasMotoboyAtivo.length === 0 ? (
+                      <div style={{ textAlign: "center", padding: "40px 16px", color: "#8a8372" }}>
+                        Nenhum despacho atribuído a você hoje.
+                      </div>
+                    ) : (
+                      rotasMotoboyAtivo.map((rota) => {
+                        const isConferido = !!rota.carga_conferida;
+                        const horaConferida = rota.carga_conferida_em
+                          ? new Date(rota.carga_conferida_em).toLocaleTimeString("pt-BR", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : null;
+
+                        return (
+                          <div
+                            key={rota.id}
+                            className="carga-card"
+                            style={{
+                              borderLeft: isConferido ? "4px solid #22C55E" : "4px solid var(--line)",
+                            }}
+                          >
+                            <div className="carga-header">
+                              <div>
+                                <div className="carga-local-title">{rota.local_nome}</div>
+                                {rota.local_cliente_nome && (
+                                  <div style={{ fontSize: 12, color: "#6b6558", marginTop: 2 }}>
+                                    👤 {rota.local_cliente_nome}
+                                  </div>
+                                )}
+                              </div>
+                              <span className={`stamp ${rota.status === "entregue" ? "ok" : "pend"}`}>
+                                {rota.status}
+                              </span>
+                            </div>
+
+                            <div className="carga-qty-display">
+                              <div>
+                                <div style={{ fontSize: 11, color: "#7a7364", textTransform: "uppercase", fontWeight: 600 }}>
+                                  Quantidade despachada
+                                </div>
+                                <div className="carga-qty-num">
+                                  {rota.quantidade} <span style={{ fontSize: 14, fontWeight: 500, color: "#7a7364" }}>quentinhas</span>
+                                </div>
+                              </div>
+                              {isConferido && (
+                                <span
+                                  style={{
+                                    background: "#DCFCE7",
+                                    color: "#166534",
+                                    fontSize: 11.5,
+                                    fontWeight: 700,
+                                    padding: "3px 8px",
+                                    borderRadius: 4,
+                                    border: "1px solid #86EFAC",
+                                  }}
+                                >
+                                  ✓ OK
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Botão de Confirmação OK */}
+                            <div style={{ marginTop: 10 }}>
+                              {!isConferido ? (
+                                <button
+                                  type="button"
+                                  className="btn"
+                                  style={{
+                                    width: "100%",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: 6,
+                                    padding: "11px 14px",
+                                    background: "var(--route-green)",
+                                    color: "#fff",
+                                    fontWeight: 700,
+                                    fontSize: 13.5,
+                                    borderRadius: 6,
+                                    border: "none",
+                                    cursor: "pointer",
+                                    boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+                                  }}
+                                  onClick={() => handleToggleConferirCarga(rota.id, true)}
+                                >
+                                  <span>✓ OK — CONFIRMAR CARGA ({rota.quantidade} UN.)</span>
+                                </button>
+                              ) : (
+                                <div
+                                  style={{
+                                    background: "#F0FDF4",
+                                    border: "1px solid #BBF7D0",
+                                    borderRadius: 6,
+                                    padding: "9px 12px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                  }}
+                                >
+                                  <span style={{ fontSize: 12.5, fontWeight: 700, color: "#166534" }}>
+                                    ✓ Carga conferida! {horaConferida ? `(${horaConferida})` : ""}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    style={{
+                                      background: "none",
+                                      border: "none",
+                                      color: "#15803D",
+                                      fontSize: 11.5,
+                                      textDecoration: "underline",
+                                      cursor: "pointer",
+                                      fontWeight: 600,
+                                    }}
+                                    onClick={() => handleToggleConferirCarga(rota.id, false)}
+                                  >
+                                    Desfazer
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+
+                {/* 2. ABA: ROTEIRO DE ENTREGAS DETALHADO */}
+                {motoSubTab === "roteiro" && (
+                  <div className="stop-list">
+                    {rotasMotoboyAtivo.length === 0 ? (
+                      <div style={{ textAlign: "center", padding: "40px 16px", color: "#8a8372" }}>
+                        Nenhuma rota pendente para você no momento.
+                      </div>
+                    ) : (
+                      rotasMotoboyAtivo.map((rota) => {
+                        const isEntregue = rota.status === "entregue";
+                        const isExpandido = rotaCardExpandidaId === rota.id;
+
+                        const horaPassada = rota.criado_em
+                          ? new Date(rota.criado_em).toLocaleTimeString("pt-BR", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "—";
+
+                        const horaEntregue = rota.entregue_em
+                          ? new Date(rota.entregue_em).toLocaleTimeString("pt-BR", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : null;
+
+                        return (
+                          <div
+                            key={rota.id}
+                            className={`stop ${isEntregue ? "delivered" : ""} ${isExpandido ? "expanded" : ""}`}
+                            onClick={() => setRotaCardExpandidaId(isExpandido ? null : rota.id)}
+                          >
+                            <div className="stop-top">
+                              <span className="loc">{rota.local_nome}</span>
+                              <span className={`stamp ${isEntregue ? "ok" : "pend"}`}>
+                                {rota.status}
+                              </span>
+                            </div>
+
+                            {/* Destaque de Quantidade */}
+                            <div className="m-qty-badge">
+                              <span>Quantidade para entrega:</span>
+                              <span className="num-highlight">
+                                {rota.quantidade} un.
+                              </span>
+                            </div>
+
+                            {rota.carga_conferida ? (
+                              <div style={{ background: "#DCFCE7", color: "#166534", border: "1px solid #86EFAC", borderRadius: 6, padding: "4px 8px", fontSize: 11.5, fontWeight: 600, marginBottom: 8 }}>
+                                ✓ Carga conferida na saída (OK)
+                              </div>
+                            ) : (
+                              <div style={{ background: "#F3F4F6", color: "#4B5563", border: "1px dashed #D1D5DB", borderRadius: 6, padding: "4px 8px", fontSize: 11.5, fontWeight: 500, marginBottom: 8 }}>
+                                ⏳ Pendente de conferência (verifique na aba de Resumo)
+                              </div>
+                            )}
+
+                            {/* Dica / Botão de Expansão */}
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: isExpandido ? 10 : 12 }}>
+                              <span className="stop-expand-hint">
+                                {isExpandido ? "▲ Toque para ocultar detalhes" : "▼ Toque para ver endereço e telefone"}
+                              </span>
+                              <span style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11, color: "#8a8372" }}>
+                                Passada às {horaPassada}
+                              </span>
+                            </div>
+
+                            {/* Seção Expandida com Detalhes Completos */}
+                            {isExpandido && (
+                              <div
+                                className="stop-details-card"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {rota.local_cliente_nome && (
+                                  <div className="stop-details-field">
+                                    <span className="stop-details-label">
+                                      👤 Quem vai receber:
+                                    </span>
+                                    <div className="stop-details-val" style={{ fontSize: 14, fontWeight: 700, color: "var(--kraft-dark)" }}>
+                                      {rota.local_cliente_nome}
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className="stop-details-field">
+                                  <span className="stop-details-label">
+                                    📍 Endereço de Entrega:
+                                  </span>
+                                  <div className="stop-details-val" style={{ fontSize: 13.5 }}>
+                                    {rota.local_endereco || "Endereço não cadastrado"}
+                                  </div>
+                                  {rota.local_endereco_link ? (
+                                    <a
+                                      href={rota.local_endereco_link}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="btn"
+                                      style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: 6,
+                                        padding: "7px 12px",
+                                        fontSize: 12.5,
+                                        fontWeight: 600,
+                                        marginTop: 8,
+                                        textDecoration: "none",
+                                        background: "var(--route-green)",
+                                        color: "#fff",
+                                        borderRadius: 3,
+                                      }}
+                                    >
+                                      🗺️ Abrir Localização no Maps / Waze
+                                    </a>
+                                  ) : rota.local_endereco ? (
+                                    <a
+                                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(rota.local_endereco)}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="btn-secondary"
+                                      style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: 4,
+                                        padding: "4px 9px",
+                                        fontSize: 11.5,
+                                        marginTop: 6,
+                                        textDecoration: "none",
+                                        color: "var(--ink)",
+                                      }}
+                                    >
+                                      🗺️ Abrir no GPS / Maps
+                                    </a>
+                                  ) : null}
+                                </div>
+
+                                <div className="stop-details-field">
+                                  <span className="stop-details-label">
+                                    📞 Telefone / Contato do Local:
+                                  </span>
+                                  {rota.local_contato ? (
+                                    <div>
+                                      <div className="stop-details-val" style={{ fontSize: 13.5 }}>
+                                        {rota.local_contato}
+                                      </div>
+                                      <div style={{ display: "flex", gap: 6, marginTop: 5, flexWrap: "wrap" }}>
+                                        <a
+                                          href={`tel:${rota.local_contato.replace(/\D/g, "")}`}
+                                          className="btn-secondary"
+                                          style={{
+                                            padding: "3px 8px",
+                                            fontSize: 11,
+                                            textDecoration: "none",
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            gap: 4,
+                                          }}
+                                        >
+                                          📞 Ligar
+                                        </a>
+                                        {(() => {
+                                          const cleanPhone = rota.local_contato.replace(/\D/g, "");
+                                          const waPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
+                                          return (
+                                            <a
+                                              href={`https://wa.me/${waPhone}`}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="btn-secondary"
+                                              style={{
+                                                padding: "3px 8px",
+                                                fontSize: 11,
+                                                textDecoration: "none",
+                                                color: "#166534",
+                                                fontWeight: 600,
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                gap: 4,
+                                              }}
+                                            >
+                                              💬 WhatsApp
+                                            </a>
+                                          );
+                                        })()}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <span style={{ color: "#8a8372", fontSize: 12, fontStyle: "italic" }}>
+                                      Telefone não informado no cadastro
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--line)", paddingTop: 8, marginTop: 8 }}>
+                                  <div>
+                                    <span className="stop-details-label">
+                                      🕒 Horário que foi passada:
+                                    </span>
+                                    <span style={{ fontFamily: "IBM Plex Mono, monospace", fontWeight: 600, fontSize: 12.5 }}>
+                                      {horaPassada}
+                                    </span>
+                                  </div>
+
+                                  {horaEntregue && (
+                                    <div style={{ textAlign: "right" }}>
+                                      <span className="stop-details-label" style={{ color: "#166534", justifyContent: "flex-end" }}>
+                                        ✓ Entregue às:
+                                      </span>
+                                      <span style={{ fontFamily: "IBM Plex Mono, monospace", fontWeight: 700, fontSize: 12.5, color: "#166534" }}>
+                                        {horaEntregue}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Botão de Entrega */}
+                            <div onClick={(e) => e.stopPropagation()}>
+                              {!isEntregue ? (
+                                <button
+                                  className="btn-delivery-action"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAlterarStatusRota(rota.id, "entregue");
+                                  }}
+                                >
+                                  <span>✓ CONFIRMAR ENTREGA</span>
+                                </button>
+                              ) : (
+                                <div className="delivered-status-box">
+                                  <span>✓ Entrega Concluída! {horaEntregue ? `(${horaEntregue})` : ""}</span>
+                                  <button
+                                    className="btn-undo-link"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAlterarStatusRota(rota.id, "pendente");
+                                    }}
+                                  >
+                                    Desfazer
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+
                 <div className="m-footnote">
-                  {rotasMotoboyAtivo.length > 0
+                  {motoSubTab === "resumo"
+                    ? "Confira as quentinhas nas placas antes de sair para as rotas"
+                    : rotasMotoboyAtivo.length > 0
                     ? "Toque no botão verde assim que realizar a entrega"
                     : "Aguardando novos despachos da Dona Rê"}
                 </div>
@@ -2764,20 +3171,75 @@ export default function Home() {
                 />
               </div>
 
-              <div className="modal-footer-row">
+              <div className="modal-footer-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                 <button
                   type="button"
                   className="btn-secondary"
-                  onClick={() => setModalEditarRotaAberto(false)}
+                  style={{ color: "var(--stamp-red)", borderColor: "#FCA5A5", fontSize: 12 }}
+                  onClick={() => setModalExcluirRota(rotaParaEditar)}
                   disabled={salvandoEdicaoRota}
                 >
-                  Cancelar
+                  🗑️ Excluir Rota
                 </button>
-                <button type="submit" className="btn" disabled={salvandoEdicaoRota}>
-                  {salvandoEdicaoRota ? "Salvando..." : "Salvar Alterações"}
-                </button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setModalEditarRotaAberto(false)}
+                    disabled={salvandoEdicaoRota}
+                  >
+                    Cancelar
+                  </button>
+                  <button type="submit" className="btn" disabled={salvandoEdicaoRota}>
+                    {salvandoEdicaoRota ? "Salvando..." : "Salvar Alterações"}
+                  </button>
+                </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Confirmar Exclusão de Rota */}
+      {modalExcluirRota && (
+        <div className="modal-overlay" onClick={() => setModalExcluirRota(null)}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-row">
+              <h3 style={{ color: "var(--stamp-red)" }}>Excluir Rota #{modalExcluirRota.id}</h3>
+              <button
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16 }}
+                onClick={() => setModalExcluirRota(null)}
+              >
+                ✕
+              </button>
+            </div>
+            <p style={{ fontSize: 14, margin: "14px 0", lineHeight: 1.5 }}>
+              Deseja realmente excluir a rota de{" "}
+              <strong>&quot;{modalExcluirRota.local_nome}&quot;</strong> com o entregador{" "}
+              <strong>&quot;{modalExcluirRota.motoboy_nome}&quot;</strong> (<strong>{modalExcluirRota.quantidade} quentinhas</strong>)?
+            </p>
+            <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 6, padding: "10px 12px", fontSize: 12.5, color: "#991B1B", marginBottom: 16 }}>
+              ⚠️ <strong>Atenção:</strong> Essa rota será apagada definitivamente do sistema. Os totais e relatórios financeiros serão recalculados automaticamente. Use esta opção caso a rota tenha sido despachada por engano ou cancelada pelo cliente.
+            </div>
+            <div className="modal-footer-row">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setModalExcluirRota(null)}
+                disabled={excluindoRota}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn"
+                style={{ background: "var(--stamp-red)" }}
+                disabled={excluindoRota}
+                onClick={() => handleConfirmarExcluirRota(modalExcluirRota.id)}
+              >
+                {excluindoRota ? "Excluindo..." : "Excluir Rota Definitivamente"}
+              </button>
+            </div>
           </div>
         </div>
       )}
