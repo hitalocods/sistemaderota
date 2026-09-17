@@ -141,6 +141,7 @@ export default function Home() {
   const [motoboys, setMotoboys] = useState<Motoboy[]>([]);
   const [rotas, setRotas] = useState<Rota[]>([]);
   const [buscaRotasDespachadas, setBuscaRotasDespachadas] = useState("");
+  const [buscaRotasMotoboy, setBuscaRotasMotoboy] = useState("");
   const [ordemRotasMotoIds, setOrdemRotasMotoIds] = useState<number[]>([]);
   const [relatorio, setRelatorio] = useState<Relatorio | null>(null);
   const [loading, setLoading] = useState(false);
@@ -1031,6 +1032,7 @@ export default function Home() {
 
   // Carrega ordem salva de rotas do motoboy para a data atual
   useEffect(() => {
+    setBuscaRotasMotoboy("");
     if (!activeMotoId) {
       setOrdemRotasMotoIds([]);
       return;
@@ -1072,6 +1074,28 @@ export default function Home() {
 
     return resultado;
   }, [rotasMotoboyAtivo, ordemRotasMotoIds]);
+
+  // Lista de rotas do motoboy filtradas pela pesquisa rápida com a lupinha
+  const rotasMotoboyExibidas = useMemo(() => {
+    if (!buscaRotasMotoboy.trim()) return rotasMotoboyOrdenadas;
+    const termo = buscaRotasMotoboy.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    return rotasMotoboyOrdenadas.filter((r) => {
+      const localNorm = (r.local_nome || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const clienteNorm = (r.local_cliente_nome || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const endNorm = (r.local_endereco || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const contatoNorm = (r.local_contato || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const statusNorm = (r.status || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const qtdNorm = String(r.quantidade || "");
+      return (
+        localNorm.includes(termo) ||
+        clienteNorm.includes(termo) ||
+        endNorm.includes(termo) ||
+        contatoNorm.includes(termo) ||
+        statusNorm.includes(termo) ||
+        qtdNorm.includes(termo)
+      );
+    });
+  }, [rotasMotoboyOrdenadas, buscaRotasMotoboy]);
 
   const moverOrdemRota = (rotaId: number, direcao: "cima" | "baixo") => {
     const listaAtual = [...rotasMotoboyOrdenadas];
@@ -2574,6 +2598,62 @@ export default function Home() {
                       🍱 <strong>Conferência de Placas:</strong> Veja a lista de locais e a quantidade de quentinhas a levar. Ao conferir e colocar as placas na moto, toque no botão <strong>OK</strong> para confirmar que pegou a carga.
                     </div>
 
+                    {rotasMotoboyOrdenadas.length > 0 && (
+                      <div style={{ position: "relative", marginBottom: 10 }}>
+                        <span
+                          style={{
+                            position: "absolute",
+                            left: 10,
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            color: "#8a8372",
+                            fontSize: 14,
+                            pointerEvents: "none",
+                            lineHeight: 1,
+                          }}
+                        >
+                          🔍
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="Buscar parada por local, cliente ou endereço..."
+                          value={buscaRotasMotoboy}
+                          onChange={(e) => setBuscaRotasMotoboy(e.target.value)}
+                          style={{
+                            width: "100%",
+                            padding: "8px 30px 8px 32px",
+                            fontSize: 13,
+                            border: "1px solid var(--line)",
+                            borderRadius: 6,
+                            background: "#fff",
+                            boxSizing: "border-box",
+                            outline: "none",
+                          }}
+                        />
+                        {buscaRotasMotoboy && (
+                          <button
+                            type="button"
+                            onClick={() => setBuscaRotasMotoboy("")}
+                            style={{
+                              position: "absolute",
+                              right: 8,
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              background: "none",
+                              border: "none",
+                              color: "#8a8372",
+                              cursor: "pointer",
+                              fontSize: 14,
+                              padding: "2px 6px",
+                            }}
+                            title="Limpar pesquisa"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    )}
+
                     {rotasMotoboyOrdenadas.length > 1 && (
                       <div
                         style={{
@@ -2591,6 +2671,11 @@ export default function Home() {
                       >
                         <span>
                           ⇅ <strong>Organizar ordem:</strong> use ▲ / ▼ ou selecione a posição.
+                          {buscaRotasMotoboy.trim() && (
+                            <span style={{ marginLeft: 6, fontSize: 11, color: "#8A5300", fontWeight: 600 }}>
+                              ({rotasMotoboyExibidas.length} de {rotasMotoboyOrdenadas.length})
+                            </span>
+                          )}
                         </span>
                         {ordemRotasMotoIds.length > 0 && (
                           <button
@@ -2617,8 +2702,40 @@ export default function Home() {
                       <div style={{ textAlign: "center", padding: "40px 16px", color: "#8a8372" }}>
                         Nenhum despacho atribuído a você hoje.
                       </div>
+                    ) : rotasMotoboyExibidas.length === 0 ? (
+                      <div
+                        style={{
+                          textAlign: "center",
+                          padding: "28px 16px",
+                          background: "#FAF7EE",
+                          border: "1px dashed var(--line)",
+                          borderRadius: 8,
+                          color: "#6b6558",
+                          fontSize: 13,
+                          marginBottom: 12,
+                        }}
+                      >
+                        <div>Nenhuma parada encontrada para &quot;<strong>{buscaRotasMotoboy}</strong>&quot;.</div>
+                        <button
+                          type="button"
+                          onClick={() => setBuscaRotasMotoboy("")}
+                          style={{
+                            marginTop: 8,
+                            padding: "5px 12px",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            background: "#fff",
+                            border: "1px solid var(--line)",
+                            borderRadius: 6,
+                            cursor: "pointer",
+                            color: "var(--ink)",
+                          }}
+                        >
+                          Limpar pesquisa
+                        </button>
+                      </div>
                     ) : (
-                      rotasMotoboyOrdenadas.map((rota, index) => {
+                      rotasMotoboyExibidas.map((rota) => {
                         const isConferido = !!rota.carga_conferida;
                         const horaConferida = rota.carga_conferida_em
                           ? new Date(rota.carga_conferida_em).toLocaleTimeString("pt-BR", {
@@ -2626,6 +2743,11 @@ export default function Home() {
                               minute: "2-digit",
                             })
                           : null;
+
+                        const indexReal = rotasMotoboyOrdenadas.findIndex((r) => r.id === rota.id);
+                        const numeroParada = indexReal !== -1 ? indexReal + 1 : 1;
+                        const isPrimeira = indexReal === 0;
+                        const isUltima = indexReal === rotasMotoboyOrdenadas.length - 1;
 
                         return (
                           <div
@@ -2649,24 +2771,24 @@ export default function Home() {
                                       fontWeight: 700,
                                     }}
                                   >
-                                    {index + 1}ª Parada
+                                    {numeroParada}ª Parada
                                   </span>
 
                                   {rotasMotoboyOrdenadas.length > 1 && (
                                     <div style={{ display: "inline-flex", gap: 3, alignItems: "center" }}>
                                       <button
                                         type="button"
-                                        disabled={index === 0}
+                                        disabled={isPrimeira}
                                         onClick={() => moverOrdemRota(rota.id, "cima")}
                                         style={{
                                           padding: "2px 7px",
                                           fontSize: 11,
                                           fontWeight: 700,
-                                          background: index === 0 ? "#f0ece1" : "#fff",
+                                          background: isPrimeira ? "#f0ece1" : "#fff",
                                           border: "1px solid var(--line)",
                                           borderRadius: 4,
-                                          cursor: index === 0 ? "not-allowed" : "pointer",
-                                          color: index === 0 ? "#b5af9f" : "var(--ink)",
+                                          cursor: isPrimeira ? "not-allowed" : "pointer",
+                                          color: isPrimeira ? "#b5af9f" : "var(--ink)",
                                           lineHeight: 1.2,
                                         }}
                                         title="Mover para cima (entregar antes)"
@@ -2675,17 +2797,17 @@ export default function Home() {
                                       </button>
                                       <button
                                         type="button"
-                                        disabled={index === rotasMotoboyOrdenadas.length - 1}
+                                        disabled={isUltima}
                                         onClick={() => moverOrdemRota(rota.id, "baixo")}
                                         style={{
                                           padding: "2px 7px",
                                           fontSize: 11,
                                           fontWeight: 700,
-                                          background: index === rotasMotoboyOrdenadas.length - 1 ? "#f0ece1" : "#fff",
+                                          background: isUltima ? "#f0ece1" : "#fff",
                                           border: "1px solid var(--line)",
                                           borderRadius: 4,
-                                          cursor: index === rotasMotoboyOrdenadas.length - 1 ? "not-allowed" : "pointer",
-                                          color: index === rotasMotoboyOrdenadas.length - 1 ? "#b5af9f" : "var(--ink)",
+                                          cursor: isUltima ? "not-allowed" : "pointer",
+                                          color: isUltima ? "#b5af9f" : "var(--ink)",
                                           lineHeight: 1.2,
                                         }}
                                         title="Mover para baixo (entregar depois)"
@@ -2693,7 +2815,7 @@ export default function Home() {
                                         ▼
                                       </button>
                                       <select
-                                        value={index}
+                                        value={indexReal}
                                         onChange={(e) => reordenarRotaParaPosicao(rota.id, Number(e.target.value))}
                                         style={{
                                           padding: "2px 5px",
@@ -2823,6 +2945,62 @@ export default function Home() {
                 {/* 2. ABA: ROTEIRO DE ENTREGAS DETALHADO */}
                 {motoSubTab === "roteiro" && (
                   <div className="stop-list">
+                    {rotasMotoboyOrdenadas.length > 0 && (
+                      <div style={{ position: "relative", marginBottom: 10 }}>
+                        <span
+                          style={{
+                            position: "absolute",
+                            left: 10,
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            color: "#8a8372",
+                            fontSize: 14,
+                            pointerEvents: "none",
+                            lineHeight: 1,
+                          }}
+                        >
+                          🔍
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="Buscar parada por local, cliente ou endereço..."
+                          value={buscaRotasMotoboy}
+                          onChange={(e) => setBuscaRotasMotoboy(e.target.value)}
+                          style={{
+                            width: "100%",
+                            padding: "8px 30px 8px 32px",
+                            fontSize: 13,
+                            border: "1px solid var(--line)",
+                            borderRadius: 6,
+                            background: "#fff",
+                            boxSizing: "border-box",
+                            outline: "none",
+                          }}
+                        />
+                        {buscaRotasMotoboy && (
+                          <button
+                            type="button"
+                            onClick={() => setBuscaRotasMotoboy("")}
+                            style={{
+                              position: "absolute",
+                              right: 8,
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              background: "none",
+                              border: "none",
+                              color: "#8a8372",
+                              cursor: "pointer",
+                              fontSize: 14,
+                              padding: "2px 6px",
+                            }}
+                            title="Limpar pesquisa"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    )}
+
                     {rotasMotoboyOrdenadas.length > 1 && (
                       <div
                         style={{
@@ -2840,6 +3018,11 @@ export default function Home() {
                       >
                         <span>
                           ⇅ <strong>Organizar roteiro:</strong> use ▲ / ▼ ou selecione a ordem.
+                          {buscaRotasMotoboy.trim() && (
+                            <span style={{ marginLeft: 6, fontSize: 11, color: "#8A5300", fontWeight: 600 }}>
+                              ({rotasMotoboyExibidas.length} de {rotasMotoboyOrdenadas.length})
+                            </span>
+                          )}
                         </span>
                         {ordemRotasMotoIds.length > 0 && (
                           <button
@@ -2866,8 +3049,40 @@ export default function Home() {
                       <div style={{ textAlign: "center", padding: "40px 16px", color: "#8a8372" }}>
                         Nenhuma rota pendente para você no momento.
                       </div>
+                    ) : rotasMotoboyExibidas.length === 0 ? (
+                      <div
+                        style={{
+                          textAlign: "center",
+                          padding: "28px 16px",
+                          background: "#FAF7EE",
+                          border: "1px dashed var(--line)",
+                          borderRadius: 8,
+                          color: "#6b6558",
+                          fontSize: 13,
+                          marginBottom: 12,
+                        }}
+                      >
+                        <div>Nenhuma parada encontrada para &quot;<strong>{buscaRotasMotoboy}</strong>&quot;.</div>
+                        <button
+                          type="button"
+                          onClick={() => setBuscaRotasMotoboy("")}
+                          style={{
+                            marginTop: 8,
+                            padding: "5px 12px",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            background: "#fff",
+                            border: "1px solid var(--line)",
+                            borderRadius: 6,
+                            cursor: "pointer",
+                            color: "var(--ink)",
+                          }}
+                        >
+                          Limpar pesquisa
+                        </button>
+                      </div>
                     ) : (
-                      rotasMotoboyOrdenadas.map((rota, index) => {
+                      rotasMotoboyExibidas.map((rota) => {
                         const isEntregue = rota.status === "entregue";
                         const isExpandido = rotaCardExpandidaId === rota.id;
 
@@ -2884,6 +3099,11 @@ export default function Home() {
                               minute: "2-digit",
                             })
                           : null;
+
+                        const indexReal = rotasMotoboyOrdenadas.findIndex((r) => r.id === rota.id);
+                        const numeroParada = indexReal !== -1 ? indexReal + 1 : 1;
+                        const isPrimeira = indexReal === 0;
+                        const isUltima = indexReal === rotasMotoboyOrdenadas.length - 1;
 
                         return (
                           <div
@@ -2905,7 +3125,7 @@ export default function Home() {
                                       fontWeight: 700,
                                     }}
                                   >
-                                    {index + 1}ª Parada
+                                    {numeroParada}ª Parada
                                   </span>
 
                                   {rotasMotoboyOrdenadas.length > 1 && (
@@ -2915,17 +3135,17 @@ export default function Home() {
                                     >
                                       <button
                                         type="button"
-                                        disabled={index === 0}
+                                        disabled={isPrimeira}
                                         onClick={() => moverOrdemRota(rota.id, "cima")}
                                         style={{
                                           padding: "2px 7px",
                                           fontSize: 11,
                                           fontWeight: 700,
-                                          background: index === 0 ? "#f0ece1" : "#fff",
+                                          background: isPrimeira ? "#f0ece1" : "#fff",
                                           border: "1px solid var(--line)",
                                           borderRadius: 4,
-                                          cursor: index === 0 ? "not-allowed" : "pointer",
-                                          color: index === 0 ? "#b5af9f" : "var(--ink)",
+                                          cursor: isPrimeira ? "not-allowed" : "pointer",
+                                          color: isPrimeira ? "#b5af9f" : "var(--ink)",
                                           lineHeight: 1.2,
                                         }}
                                         title="Mover para cima (entregar antes)"
@@ -2934,17 +3154,17 @@ export default function Home() {
                                       </button>
                                       <button
                                         type="button"
-                                        disabled={index === rotasMotoboyOrdenadas.length - 1}
+                                        disabled={isUltima}
                                         onClick={() => moverOrdemRota(rota.id, "baixo")}
                                         style={{
                                           padding: "2px 7px",
                                           fontSize: 11,
                                           fontWeight: 700,
-                                          background: index === rotasMotoboyOrdenadas.length - 1 ? "#f0ece1" : "#fff",
+                                          background: isUltima ? "#f0ece1" : "#fff",
                                           border: "1px solid var(--line)",
                                           borderRadius: 4,
-                                          cursor: index === rotasMotoboyOrdenadas.length - 1 ? "not-allowed" : "pointer",
-                                          color: index === rotasMotoboyOrdenadas.length - 1 ? "#b5af9f" : "var(--ink)",
+                                          cursor: isUltima ? "not-allowed" : "pointer",
+                                          color: isUltima ? "#b5af9f" : "var(--ink)",
                                           lineHeight: 1.2,
                                         }}
                                         title="Mover para baixo (entregar depois)"
@@ -2952,7 +3172,7 @@ export default function Home() {
                                         ▼
                                       </button>
                                       <select
-                                        value={index}
+                                        value={indexReal}
                                         onChange={(e) => reordenarRotaParaPosicao(rota.id, Number(e.target.value))}
                                         style={{
                                           padding: "2px 5px",
