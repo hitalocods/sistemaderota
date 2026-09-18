@@ -4,8 +4,8 @@ import { sql } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 /**
- * Webhook oficial para receber notificações de pagamento e renovação de assinatura do PagBank
- * Documentação PagBank: Notificações de Cobrança / Assinaturas
+ * Webhook unificado para confirmação de pagamento e renovação de licença
+ * Suporta AbacatePay (event: billing.paid) e PagBank (charges.paid / PAID)
  */
 export async function POST(req: Request) {
   try {
@@ -14,36 +14,40 @@ export async function POST(req: Request) {
     try {
       data = JSON.parse(rawBody);
     } catch {
-      // Se vier como Form URL Encoded (comum em notificações antigas de notificationCode)
       const params = new URLSearchParams(rawBody);
       data = Object.fromEntries(params.entries());
     }
 
-    console.log("[PagBank Webhook] Notificação recebida:", JSON.stringify(data, null, 2));
+    console.log("[Assinatura Webhook] Notificação recebida:", JSON.stringify(data, null, 2));
 
-    // Identifica o status do evento PagBank
-    // PagBank v4/v5 usa charges[].status == 'PAID' ou status == 'PAID' ou subscription.status == 'ACTIVE'
-    const statusCharge = data?.charges?.[0]?.status || data?.status || data?.event;
-    const pagbankId = data?.id || data?.charges?.[0]?.id || data?.subscription_id;
+    // Identificação de eventos AbacatePay ou PagBank
+    const eventName = data?.event || "";
+    const billStatus = data?.data?.status || data?.status || data?.charges?.[0]?.status;
+    const transacaoId = data?.data?.id || data?.id || data?.charges?.[0]?.id;
 
+    // AbacatePay: event === 'billing.paid' ou data.status === 'PAID'
+    // PagBank: charges[0].status === 'PAID' ou status === 'PAID'
     const isPago =
-      statusCharge === "PAID" ||
-      statusCharge === "AUTHORIZED" ||
-      statusCharge === "charges.paid" ||
-      statusCharge === "subscription.paid";
+      eventName === "billing.paid" ||
+      billStatus === "PAID" ||
+      billStatus === "AUTHORIZED" ||
+      eventName === "charges.paid" ||
+      eventName === "subscription.paid";
 
     const isFalha =
-      statusCharge === "DECLINED" ||
-      statusCharge === "CANCELED" ||
-      statusCharge === "charges.failed";
+      eventName === "billing.failed" ||
+      eventName === "billing.refunded" ||
+      billStatus === "DECLINED" ||
+      billStatus === "CANCELED" ||
+      eventName === "charges.failed";
 
     if (isPago) {
-      // Renova por mais 30 dias a partir de agora (ou soma 30 dias ao vencimento atual se ainda não expirou)
+      // Renova a licença por mais 30 dias
       await sql`
         update assinaturas
         set 
           status = 'ativo',
-          pagbank_id = coalesce(${pagbankId ?? null}, pagbank_id),
+          pagbank_id = coalesce(${transacaoId ?? null}, pagbank_id),
           pago_em = now(),
           vence_em = case 
             when vence_em > now() then vence_em + interval '30 days'
@@ -52,7 +56,7 @@ export async function POST(req: Request) {
           atualizado_em = now()
         where id = (select id from assinaturas order by id asc limit 1)
       `;
-      console.log("[PagBank Webhook] Pagamento aprovado! Assinatura renovada por +30 dias.");
+      console.log(`[Assinatura Webhook] Pagamento Aprovado (${transacaoId || "sem id"})! Sistema liberado e renovado por +30 dias.`);
     } else if (isFalha) {
       await sql`
         update assinaturas
@@ -61,21 +65,19 @@ export async function POST(req: Request) {
           atualizado_em = now()
         where id = (select id from assinaturas order by id asc limit 1)
       `;
-      console.log("[PagBank Webhook] Pagamento com falha/cancelado. Status atualizado para pendente.");
+      console.log("[Assinatura Webhook] Status atualizado para pendente.");
     }
 
-    // O PagBank exige resposta HTTP 200 para confirmar recebimento
-    return NextResponse.json({ received: true, status: statusCharge });
+    return NextResponse.json({ received: true, status: billStatus || eventName });
   } catch (error) {
-    console.error("[PagBank Webhook] Erro ao processar webhook:", error);
-    // Retorna 200 com erro logado para evitar retentativas infinitas caso o payload tenha formato inesperado
+    console.error("[Assinatura Webhook] Erro ao processar notificação:", error);
     return NextResponse.json({ received: true, error: "Erro interno no processamento" });
   }
 }
 
 export async function GET() {
   return NextResponse.json({
-    message: "Endpoint de Webhook PagBank para Assinatura do Sistema Quentinhas da Rê",
+    message: "Endpoint de Webhook para Renovação de Assinatura (AbacatePay & PagBank)",
     metodo_esperado: "POST",
   });
 }

@@ -68,15 +68,16 @@ export async function POST(req: Request) {
 function formatarAssinatura(row: any) {
   const agora = new Date();
   const venceEm = new Date(row.vence_em);
-  const diasTolerancia = Number(row.dias_tolerancia || 3);
+  // Regra solicitada: travar caso passe 1 dia do pagamento/vencimento
+  const diasTolerancia = Number(row.dias_tolerancia ?? 1);
   
-  // Limite com tolerância
+  // Limite com tolerância (ex: venceEm + 1 dia)
   const limiteTolerancia = new Date(venceEm.getTime() + diasTolerancia * 24 * 60 * 60 * 1000);
   
   const diferencaMs = venceEm.getTime() - agora.getTime();
   const diasRestantes = Math.ceil(diferencaMs / (1000 * 60 * 60 * 24));
   
-  // Bloqueado se ultrapassar a data de vencimento + tolerância
+  // Bloqueado se ultrapassar a data de vencimento + 1 dia de tolerância
   const expirado = agora > limiteTolerancia;
   const emTolerancia = agora > venceEm && agora <= limiteTolerancia;
 
@@ -87,11 +88,10 @@ function formatarAssinatura(row: any) {
     statusCalculado = "pendente";
   }
 
-  // Link do PagBank configurado no .env ou banco
   const linkPagamento =
     row.link_pagamento ||
-    process.env.PAGBANK_SUBSCRIPTION_URL ||
-    "https://pagbank.uol.com.br/";
+    process.env.ABACATEPAY_CHECKOUT_URL ||
+    null;
 
   return {
     id: row.id,

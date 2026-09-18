@@ -247,7 +247,36 @@ export default function Home() {
     setTimeout(() => setToast(null), 3500);
   }
 
-  // Consulta de Status da Assinatura / Licença (PagBank)
+  // Consulta de Status da Assinatura / Licença
+  const [gerandoAbacatePay, setGerandoAbacatePay] = useState(false);
+  const [abacatePayErro, setAbacatePayErro] = useState<string | null>(null);
+
+  async function handlePagarAbacatePay() {
+    try {
+      setGerandoAbacatePay(true);
+      setAbacatePayErro(null);
+      const res = await fetch("/api/assinatura/abacatepay", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setAbacatePayErro(data.error || "Não foi possível gerar a cobrança no AbacatePay.");
+        showToast(data.error || "Erro ao conectar ao AbacatePay");
+        return;
+      }
+
+      if (data.url) {
+        showToast("✓ Cobrança Pix gerada com sucesso! Abrindo tela de pagamento...");
+        window.open(data.url, "_blank");
+      }
+    } catch (err: any) {
+      setAbacatePayErro("Erro de conexão ao gerar cobrança no AbacatePay.");
+      showToast("Erro ao gerar Pix no AbacatePay");
+    } finally {
+      setGerandoAbacatePay(false);
+    }
+  }
+
   async function carregarAssinatura() {
     try {
       const res = await fetch("/api/assinatura");
@@ -1374,6 +1403,50 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Banner de Tolerância (1 dia) */}
+      {assinatura?.em_tolerancia && !assinatura?.bloqueado && (
+        <div
+          style={{
+            background: "#FEF3C7",
+            borderBottom: "2px solid #F59E0B",
+            padding: "10px 16px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            fontSize: 13,
+            color: "#92400E",
+            fontWeight: 500,
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 18 }}>⚠️</span>
+            <span>
+              <strong>Atenção:</strong> A mensalidade de uso do sistema (<strong>R$ {assinatura.valor_mensal.toFixed(2)}</strong>) venceu. O sistema será <strong>bloqueado após 1 dia de tolerância</strong> caso o pagamento via Pix não seja realizado.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handlePagarAbacatePay}
+            disabled={gerandoAbacatePay}
+            style={{
+              background: "#16A34A",
+              color: "#fff",
+              border: "none",
+              padding: "7px 16px",
+              borderRadius: 6,
+              fontWeight: 700,
+              fontSize: 13,
+              cursor: "pointer",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+            }}
+          >
+            {gerandoAbacatePay ? "Gerando Pix..." : `⚡ Pagar R$ ${assinatura.valor_mensal.toFixed(2)} via Pix (AbacatePay)`}
+          </button>
+        </div>
+      )}
+
       <div className="container">
         {/* ======================= PAINEL DA DONA (ADMIN) ======================= */}
         {currentView === "admin" && usuario.role === "admin" && (
@@ -1394,7 +1467,7 @@ export default function Home() {
                   Acesso Temporariamente Suspenso
                 </h2>
                 <p style={{ fontSize: 14, color: "#6b6558", lineHeight: 1.5, margin: "0 0 20px" }}>
-                  A mensalidade de uso do sistema está pendente. Para continuar gerenciando rotas, entregas e relatórios normalmente, regularize sua assinatura.
+                  A mensalidade de uso do sistema está vencida há mais de 1 dia de tolerância. Para continuar gerenciando rotas, entregas e relatórios normalmente, efetue o pagamento direto via Pix.
                 </p>
 
                 <div
@@ -1402,32 +1475,70 @@ export default function Home() {
                     background: "#F7F3EA",
                     border: "1px solid var(--line)",
                     padding: "16px",
-                    marginBottom: 24,
-                    borderRadius: 4,
+                    marginBottom: 20,
+                    borderRadius: 6,
                     textAlign: "left",
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 13.5 }}>
-                    <span style={{ color: "#6b6558" }}>Plano:</span>
-                    <strong>Licença Quentinhas da Rê</strong>
+                    <span style={{ color: "#6b6558" }}>Licença:</span>
+                    <strong>Sistema Quentinhas da Rê</strong>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 13.5 }}>
-                    <span style={{ color: "#6b6558" }}>Valor mensal:</span>
-                    <strong style={{ fontSize: 16, color: "var(--ink)" }}>R$ {assinatura.valor_mensal.toFixed(2)}</strong>
+                    <span style={{ color: "#6b6558" }}>Valor da mensalidade:</span>
+                    <strong style={{ fontSize: 16, color: "var(--route-green)" }}>R$ {assinatura.valor_mensal.toFixed(2)}</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 13.5 }}>
+                    <span style={{ color: "#6b6558" }}>Forma de pagamento:</span>
+                    <strong>Pix Direto (AbacatePay)</strong>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5 }}>
-                    <span style={{ color: "#6b6558" }}>Forma de cobrança:</span>
-                    <span>Débito Automático no Cartão</span>
+                    <span style={{ color: "#6b6558" }}>Regra de bloqueio:</span>
+                    <span style={{ color: "var(--stamp-red)", fontWeight: 600 }}>Tolerância máxima de 1 dia</span>
                   </div>
                 </div>
 
-                <a
-                  href={assinatura.link_pagamento}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                {abacatePayErro && (
+                  <div
+                    style={{
+                      background: "#FEF2F2",
+                      border: "1px solid #FCA5A5",
+                      color: "#991B1B",
+                      padding: "12px 14px",
+                      borderRadius: 6,
+                      fontSize: 12.5,
+                      textAlign: "left",
+                      marginBottom: 16,
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    <strong>⚠️ Aviso sobre a Cobrança:</strong>
+                    <div style={{ marginTop: 4 }}>{abacatePayErro}</div>
+                    {assinatura.link_pagamento && (
+                      <div style={{ marginTop: 8 }}>
+                        <a
+                          href={assinatura.link_pagamento}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: "#1D4ED8", fontWeight: 700, textDecoration: "underline" }}
+                        >
+                          Clique aqui para abrir link direto de pagamento ↗
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <button
+                  type="button"
                   className="btn"
+                  disabled={gerandoAbacatePay}
+                  onClick={handlePagarAbacatePay}
                   style={{
-                    display: "block",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
                     width: "100%",
                     padding: "14px",
                     fontSize: 15,
@@ -1435,10 +1546,11 @@ export default function Home() {
                     textDecoration: "none",
                     marginBottom: 12,
                     background: "var(--route-green)",
+                    cursor: gerandoAbacatePay ? "wait" : "pointer",
                   }}
                 >
-                  💳 Regularizar Assinatura no Cartão (R$ {assinatura.valor_mensal.toFixed(2)})
-                </a>
+                  {gerandoAbacatePay ? "⏳ Gerando Pix no AbacatePay..." : `⚡ Pagar R$ ${assinatura.valor_mensal.toFixed(2)} via Pix (AbacatePay)`}
+                </button>
 
                 <button
                   type="button"
@@ -2407,6 +2519,51 @@ export default function Home() {
 
         {/* ======================= APP DO MOTOBOY ======================= */}
         {currentView === "moto" && (
+          assinatura?.bloqueado ? (
+            <div style={{ maxWidth: 460, margin: "40px auto 0", textAlign: "center" }}>
+              <div
+                className="panel-box"
+                style={{
+                  background: "#FFFDF9",
+                  border: "2px solid var(--stamp-red)",
+                  boxShadow: "6px 6px 0 var(--ink)",
+                  padding: "36px 24px",
+                }}
+              >
+                <div style={{ fontSize: 48, marginBottom: 12 }}>🔒</div>
+                <h2 style={{ margin: "0 0 10px", fontSize: 20, color: "var(--stamp-red)" }}>
+                  Sistema Temporariamente Suspenso
+                </h2>
+                <p style={{ fontSize: 14, color: "#6b6558", lineHeight: 1.5, margin: "0 0 18px" }}>
+                  O sistema de entregas está suspenso aguardando renovação da licença mensal pela administração do restaurante.
+                </p>
+                <div
+                  style={{
+                    background: "#F7F3EA",
+                    border: "1px solid var(--line)",
+                    padding: "12px 16px",
+                    borderRadius: 6,
+                    fontSize: 13,
+                    color: "#473d31",
+                    marginBottom: 20,
+                  }}
+                >
+                  Por favor, avise a <strong>Dona Rê</strong> para regularizar a mensalidade do sistema de rotas.
+                </div>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  style={{ width: "100%", padding: "10px", fontSize: 13 }}
+                  onClick={() => {
+                    carregarAssinatura();
+                    showToast("Verificando se o sistema foi liberado...");
+                  }}
+                >
+                  ↻ Já foi pago / Atualizar liberação
+                </button>
+              </div>
+            </div>
+          ) : (
           <div className="phone-wrap">
             {/* Se for Admin simulando, mostra seletor */}
             {usuario.role === "admin" && (
@@ -3426,6 +3583,7 @@ export default function Home() {
               </div>
             </div>
           </div>
+          )
         )}
       </div>
 
@@ -3901,12 +4059,12 @@ export default function Home() {
         </div>
       )}
 
-      {/* Modal: Detalhes da Assinatura (PagBank) */}
+      {/* Modal: Detalhes da Assinatura (AbacatePay) */}
       {modalAssinaturaAberto && assinatura && (
         <div className="modal-overlay" onClick={() => setModalAssinaturaAberto(false)}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header-row">
-              <h3>Licença Atlas</h3>
+              <h3>Licença Quentinhas da Rê</h3>
               <button
                 style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16 }}
                 onClick={() => setModalAssinaturaAberto(false)}
@@ -3921,7 +4079,7 @@ export default function Home() {
                   background: "#F7F3EA",
                   border: "1px solid var(--line)",
                   padding: "14px",
-                  borderRadius: 4,
+                  borderRadius: 6,
                   marginBottom: 16,
                 }}
               >
@@ -3935,28 +4093,28 @@ export default function Home() {
                     {assinatura.bloqueado
                       ? "BLOQUEADO"
                       : assinatura.em_tolerancia
-                      ? "EM TOLERÂNCIA"
+                      ? "EM TOLERÂNCIA (1 DIA)"
                       : "ATIVO (EM DIA)"}
                   </span>
                 </div>
 
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 13.5 }}>
                   <span style={{ color: "#6b6558" }}>Valor da mensalidade:</span>
-                  <strong style={{ fontSize: 15 }}>R$ {assinatura.valor_mensal.toFixed(2)} / mês</strong>
+                  <strong style={{ fontSize: 15, color: "var(--route-green)" }}>R$ {assinatura.valor_mensal.toFixed(2)} / mês</strong>
                 </div>
 
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 13.5 }}>
-                  <span style={{ color: "#6b6558" }}>Cobrança recorrente:</span>
-                  <span>Débito no Cartão de Crédito</span>
+                  <span style={{ color: "#6b6558" }}>Forma de pagamento:</span>
+                  <strong>Pix Direto (AbacatePay)</strong>
                 </div>
 
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 13.5 }}>
-                  <span style={{ color: "#6b6558" }}>Dia de vencimento:</span>
-                  <strong>Todo dia 15</strong>
+                  <span style={{ color: "#6b6558" }}>Tolerância após vencimento:</span>
+                  <span style={{ color: "var(--stamp-red)", fontWeight: 600 }}>1 dia</span>
                 </div>
 
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5 }}>
-                  <span style={{ color: "#6b6558" }}>Próxima renovação:</span>
+                  <span style={{ color: "#6b6558" }}>Próximo vencimento:</span>
                   <strong>
                     {assinatura.vence_em
                       ? new Date(assinatura.vence_em).toLocaleDateString("pt-BR")
@@ -3966,11 +4124,29 @@ export default function Home() {
                 </div>
               </div>
 
+              {abacatePayErro && (
+                <div
+                  style={{
+                    background: "#FEF2F2",
+                    border: "1px solid #FCA5A5",
+                    color: "#991B1B",
+                    padding: "10px 12px",
+                    borderRadius: 6,
+                    fontSize: 12,
+                    marginBottom: 14,
+                    lineHeight: 1.45,
+                  }}
+                >
+                  <strong>⚠️ Aviso da Cobrança:</strong>
+                  <div>{abacatePayErro}</div>
+                </div>
+              )}
+
               <div
                 style={{
                   background: "#F7F3EA",
                   border: "1px solid var(--line)",
-                  borderRadius: 4,
+                  borderRadius: 6,
                   padding: "12px 14px",
                   marginBottom: 16,
                   fontSize: 12.5,
@@ -3979,34 +4155,33 @@ export default function Home() {
                 }}
               >
                 <div style={{ fontWeight: 700, marginBottom: 4, color: "var(--ink)", display: "flex", alignItems: "center", gap: 5 }}>
-                  <span>ℹ️</span> Regras de Renovação e Cancelamento:
+                  <span>ℹ️</span> Regra de Bloqueio Automático:
                 </div>
-                <div style={{ marginBottom: 6 }}>
-                  • O valor é debitado <strong>automaticamente todo mês</strong> no cartão cadastrado para manter o sistema sempre liberado.
+                <div style={{ marginBottom: 4 }}>
+                  • O sistema possui <strong>tolerância de 1 dia</strong> após a data de vencimento da mensalidade.
                 </div>
                 <div>
-                  • Você pode cancelar a qualquer momento. Para <strong>evitar a cobrança automática do mês seguinte</strong>, solicite o cancelamento com pelo menos <strong>10 dias de antecedência</strong> do vencimento.
+                  • Caso passe 1 dia sem a confirmação do pagamento de <strong>R$ 85,00 via Pix</strong>, o sistema é <strong>bloqueado automaticamente</strong> até a quitação.
                 </div>
               </div>
 
-              <div className="modal-footer-row" style={{ marginTop: 0 }}>
-                {/* BOTÃO DE PAGAMENTO (DESATIVADO TEMPORARIAMENTE - DESCOMENTE QUANDO QUISER REATIVAR)
-                <a
-                  href={assinatura.link_pagamento}
-                  target="_blank"
-                  rel="noopener noreferrer"
+              <div className="modal-footer-row" style={{ marginTop: 0, display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button
+                  type="button"
                   className="btn"
+                  disabled={gerandoAbacatePay}
+                  onClick={handlePagarAbacatePay}
                   style={{
-                    textDecoration: "none",
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 6,
                     fontSize: 13,
+                    background: "var(--route-green)",
+                    cursor: gerandoAbacatePay ? "wait" : "pointer",
                   }}
                 >
-                  💳 Gerenciar Assinatura / Cartão
-                </a>
-                */}
+                  {gerandoAbacatePay ? "⏳ Gerando Pix..." : `⚡ Pagar R$ ${assinatura.valor_mensal.toFixed(2)} via Pix (AbacatePay)`}
+                </button>
                 <button
                   type="button"
                   className="btn-secondary"
