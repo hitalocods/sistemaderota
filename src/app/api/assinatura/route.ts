@@ -13,7 +13,7 @@ export async function GET() {
       // Cria registro padrão de 30 dias se ainda não existir
       const inserted = await sql`
         insert into assinaturas (cliente_nome, valor_mensal, status, vence_em)
-        values ('Dona Rê', 65.00, 'ativo', now() + interval '30 days')
+        values ('Dona Rê', 85.00, 'ativo', now() + interval '30 days')
         returning *
       `;
       return NextResponse.json({ assinatura: formatarAssinatura(inserted[0]) });
@@ -96,7 +96,7 @@ function formatarAssinatura(row: any) {
   return {
     id: row.id,
     cliente_nome: row.cliente_nome,
-    valor_mensal: Number(row.valor_mensal || 65.0),
+    valor_mensal: Number(row.valor_mensal || 85.0),
     status: statusCalculado,
     bloqueado: expirado,
     em_tolerancia: emTolerancia,

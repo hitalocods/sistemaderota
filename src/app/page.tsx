@@ -121,7 +121,7 @@ export default function Home() {
   const [authChecking, setAuthChecking] = useState(true);
   const [usuario, setUsuario] = useState<Usuario | null>(null);
 
-  // Assinatura e Licença (PagBank - R$ 65/mês)
+  // Assinatura e Licença (PagBank - R$ 85/mês)
   const [assinatura, setAssinatura] = useState<AssinaturaInfo | null>(null);
   const [modalAssinaturaAberto, setModalAssinaturaAberto] = useState(false);
 
