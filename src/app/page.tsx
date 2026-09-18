@@ -260,8 +260,8 @@ export default function Home() {
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        setAbacatePayErro(data.error || "Não foi possível gerar a cobrança no AbacatePay.");
-        showToast(data.error || "Erro ao conectar ao AbacatePay");
+        setAbacatePayErro(data.error || "Não foi possível gerar a cobrança Pix.");
+        showToast(data.error || "Erro ao gerar cobrança Pix");
         return;
       }
 
@@ -270,8 +270,8 @@ export default function Home() {
         window.open(data.url, "_blank");
       }
     } catch (err: any) {
-      setAbacatePayErro("Erro de conexão ao gerar cobrança no AbacatePay.");
-      showToast("Erro ao gerar Pix no AbacatePay");
+      setAbacatePayErro("Erro de conexão ao gerar cobrança Pix.");
+      showToast("Erro ao gerar Pix");
     } finally {
       setGerandoAbacatePay(false);
     }
@@ -1442,7 +1442,7 @@ export default function Home() {
               boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
             }}
           >
-            {gerandoAbacatePay ? "Gerando Pix..." : `⚡ Pagar R$ ${assinatura.valor_mensal.toFixed(2)} via Pix (AbacatePay)`}
+            {gerandoAbacatePay ? "Gerando Pix..." : `⚡ Pagar R$ ${assinatura.valor_mensal.toFixed(2)} via Pix`}
           </button>
         </div>
       )}
@@ -1467,7 +1467,7 @@ export default function Home() {
                   Acesso Temporariamente Suspenso
                 </h2>
                 <p style={{ fontSize: 14, color: "#6b6558", lineHeight: 1.5, margin: "0 0 20px" }}>
-                  A mensalidade de uso do sistema está vencida há mais de 1 dia de tolerância. Para continuar gerenciando rotas, entregas e relatórios normalmente, efetue o pagamento direto via Pix.
+                  A mensalidade de uso do sistema está pendente. Para continuar gerenciando rotas, entregas e relatórios normalmente, efetue o pagamento via Pix.
                 </p>
 
                 <div
@@ -1488,13 +1488,9 @@ export default function Home() {
                     <span style={{ color: "#6b6558" }}>Valor da mensalidade:</span>
                     <strong style={{ fontSize: 16, color: "var(--route-green)" }}>R$ {assinatura.valor_mensal.toFixed(2)}</strong>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 13.5 }}>
-                    <span style={{ color: "#6b6558" }}>Forma de pagamento:</span>
-                    <strong>Pix Direto (AbacatePay)</strong>
-                  </div>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5 }}>
-                    <span style={{ color: "#6b6558" }}>Regra de bloqueio:</span>
-                    <span style={{ color: "var(--stamp-red)", fontWeight: 600 }}>Tolerância máxima de 1 dia</span>
+                    <span style={{ color: "#6b6558" }}>Forma de pagamento:</span>
+                    <strong>Pix</strong>
                   </div>
                 </div>
 
@@ -1549,7 +1545,7 @@ export default function Home() {
                     cursor: gerandoAbacatePay ? "wait" : "pointer",
                   }}
                 >
-                  {gerandoAbacatePay ? "⏳ Gerando Pix no AbacatePay..." : `⚡ Pagar R$ ${assinatura.valor_mensal.toFixed(2)} via Pix (AbacatePay)`}
+                  {gerandoAbacatePay ? "⏳ Gerando Pix..." : `⚡ Pagar R$ ${assinatura.valor_mensal.toFixed(2)} via Pix`}
                 </button>
 
                 <button
@@ -4105,12 +4101,7 @@ export default function Home() {
 
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 13.5 }}>
                   <span style={{ color: "#6b6558" }}>Forma de pagamento:</span>
-                  <strong>Pix Direto (AbacatePay)</strong>
-                </div>
-
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 13.5 }}>
-                  <span style={{ color: "#6b6558" }}>Tolerância após vencimento:</span>
-                  <span style={{ color: "var(--stamp-red)", fontWeight: 600 }}>1 dia</span>
+                  <strong>Pix</strong>
                 </div>
 
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5 }}>
@@ -4142,29 +4133,6 @@ export default function Home() {
                 </div>
               )}
 
-              <div
-                style={{
-                  background: "#F7F3EA",
-                  border: "1px solid var(--line)",
-                  borderRadius: 6,
-                  padding: "12px 14px",
-                  marginBottom: 16,
-                  fontSize: 12.5,
-                  color: "#473d31",
-                  lineHeight: 1.45,
-                }}
-              >
-                <div style={{ fontWeight: 700, marginBottom: 4, color: "var(--ink)", display: "flex", alignItems: "center", gap: 5 }}>
-                  <span>ℹ️</span> Regra de Bloqueio Automático:
-                </div>
-                <div style={{ marginBottom: 4 }}>
-                  • O sistema possui <strong>tolerância de 1 dia</strong> após a data de vencimento da mensalidade.
-                </div>
-                <div>
-                  • Caso passe 1 dia sem a confirmação do pagamento de <strong>R$ 85,00 via Pix</strong>, o sistema é <strong>bloqueado automaticamente</strong> até a quitação.
-                </div>
-              </div>
-
               <div className="modal-footer-row" style={{ marginTop: 0, display: "flex", gap: 8, justifyContent: "flex-end" }}>
                 <button
                   type="button"
@@ -4180,7 +4148,7 @@ export default function Home() {
                     cursor: gerandoAbacatePay ? "wait" : "pointer",
                   }}
                 >
-                  {gerandoAbacatePay ? "⏳ Gerando Pix..." : `⚡ Pagar R$ ${assinatura.valor_mensal.toFixed(2)} via Pix (AbacatePay)`}
+                  {gerandoAbacatePay ? "⏳ Gerando Pix..." : `⚡ Pagar R$ ${assinatura.valor_mensal.toFixed(2)} via Pix`}
                 </button>
                 <button
                   type="button"
