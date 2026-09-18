@@ -250,6 +250,12 @@ export default function Home() {
   // Consulta de Status da Assinatura / Licença
   const [gerandoAbacatePay, setGerandoAbacatePay] = useState(false);
   const [abacatePayErro, setAbacatePayErro] = useState<string | null>(null);
+  const [dadosPixModal, setDadosPixModal] = useState<{
+    qrCodeImage: string;
+    brCode: string;
+    valor: string;
+  } | null>(null);
+  const [pixCopiado, setPixCopiado] = useState(false);
 
   async function handlePagarAbacatePay() {
     try {
@@ -265,7 +271,11 @@ export default function Home() {
         return;
       }
 
-      if (data.url) {
+      if (data.tipo === "qrcode_direto" && data.pix) {
+        setDadosPixModal(data.pix);
+        setPixCopiado(false);
+        showToast("✓ QR Code Pix gerado! Escaneie ou copie o código.");
+      } else if (data.url) {
         showToast("✓ Cobrança Pix gerada com sucesso! Abrindo tela de pagamento...");
         window.open(data.url, "_blank");
       }
@@ -1403,27 +1413,39 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Banner de Tolerância (1 dia) */}
-      {assinatura?.em_tolerancia && !assinatura?.bloqueado && (
+      {/* Banner de Aviso de Vencimento / Pagamento */}
+      {assinatura && !assinatura.bloqueado && (assinatura.em_tolerancia || (assinatura.dias_restantes <= 2 && assinatura.dias_restantes >= 0)) && (
         <div
           style={{
-            background: "#FEF3C7",
-            borderBottom: "2px solid #F59E0B",
+            background: assinatura.em_tolerancia ? "#FEF3C7" : "#EFF6FF",
+            borderBottom: `2px solid ${assinatura.em_tolerancia ? "#F59E0B" : "#3B82F6"}`,
             padding: "10px 16px",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             gap: 12,
             fontSize: 13,
-            color: "#92400E",
+            color: assinatura.em_tolerancia ? "#92400E" : "#1E40AF",
             fontWeight: 500,
             flexWrap: "wrap",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 18 }}>⚠️</span>
+            <span style={{ fontSize: 18 }}>{assinatura.em_tolerancia ? "⚠️" : "🔔"}</span>
             <span>
-              <strong>Atenção:</strong> A mensalidade de uso do sistema (<strong>R$ {assinatura.valor_mensal.toFixed(2)}</strong>) venceu. O sistema será <strong>bloqueado após 1 dia de tolerância</strong> caso o pagamento via Pix não seja realizado.
+              {assinatura.em_tolerancia ? (
+                <>
+                  <strong>Atenção:</strong> A mensalidade do sistema (<strong>R$ {assinatura.valor_mensal.toFixed(2)}</strong>) venceu. Renove via Pix para manter o acesso contínuo.
+                </>
+              ) : assinatura.dias_restantes === 0 ? (
+                <>
+                  <strong>Lembrete:</strong> A mensalidade de uso do sistema (<strong>R$ {assinatura.valor_mensal.toFixed(2)}</strong>) <strong>vence hoje</strong>!
+                </>
+              ) : (
+                <>
+                  <strong>Lembrete:</strong> A mensalidade de uso do sistema (<strong>R$ {assinatura.valor_mensal.toFixed(2)}</strong>) vence em <strong>{assinatura.dias_restantes} {assinatura.dias_restantes === 1 ? "dia" : "dias"}</strong>.
+                </>
+              )}
             </span>
           </div>
           <button
@@ -4133,6 +4155,29 @@ export default function Home() {
                 </div>
               )}
 
+              <div
+                style={{
+                  background: "#F7F3EA",
+                  border: "1px solid var(--line)",
+                  borderRadius: 6,
+                  padding: "12px 14px",
+                  marginBottom: 16,
+                  fontSize: 12.5,
+                  color: "#473d31",
+                  lineHeight: 1.45,
+                }}
+              >
+                <div style={{ fontWeight: 700, marginBottom: 4, color: "var(--ink)", display: "flex", alignItems: "center", gap: 5 }}>
+                  <span>ℹ️</span> Informações de Renovação:
+                </div>
+                <div style={{ marginBottom: 4 }}>
+                  • O valor da mensalidade mantém o sistema sempre liberado com suporte, atualizações e sincronização em tempo real.
+                </div>
+                <div>
+                  • O pagamento é processado instantaneamente via <strong>Pix</strong> de forma rápida e segura.
+                </div>
+              </div>
+
               <div className="modal-footer-row" style={{ marginTop: 0, display: "flex", gap: 8, justifyContent: "flex-end" }}>
                 <button
                   type="button"
@@ -4154,6 +4199,135 @@ export default function Home() {
                   type="button"
                   className="btn-secondary"
                   onClick={() => setModalAssinaturaAberto(false)}
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: QR Code Pix Direto (Sem Formulário de Cadastro) */}
+      {dadosPixModal && (
+        <div className="modal-overlay" onClick={() => setDadosPixModal(null)}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420, textAlign: "center" }}>
+            <div className="modal-header-row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+              <h3 style={{ margin: 0, fontSize: 18, color: "var(--ink)" }}>
+                ⚡ Pagamento via Pix
+              </h3>
+              <button
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#6b6558" }}
+                onClick={() => setDadosPixModal(null)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ padding: "8px 0" }}>
+              <div style={{ fontSize: 26, fontWeight: 800, color: "var(--route-green)", marginBottom: 4 }}>
+                R$ {dadosPixModal.valor}
+              </div>
+              <p style={{ fontSize: 13, color: "#6b6558", margin: "0 0 14px", lineHeight: 1.4 }}>
+                Abra o aplicativo do seu banco e escaneie o QR Code abaixo:
+              </p>
+
+              {dadosPixModal.qrCodeImage && (
+                <div
+                  style={{
+                    background: "#fff",
+                    border: "2px solid var(--line)",
+                    borderRadius: 12,
+                    padding: 12,
+                    display: "inline-block",
+                    boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
+                    marginBottom: 16,
+                  }}
+                >
+                  <img
+                    src={dadosPixModal.qrCodeImage}
+                    alt="QR Code Pix"
+                    style={{ width: 210, height: 210, display: "block" }}
+                  />
+                </div>
+              )}
+
+              <div style={{ textAlign: "left", marginBottom: 14 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: "#6b6558", display: "block", marginBottom: 4 }}>
+                  Ou pague pelo Pix Copia e Cola:
+                </label>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    type="text"
+                    readOnly
+                    value={dadosPixModal.brCode}
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                    style={{
+                      width: "100%",
+                      fontSize: 11,
+                      padding: "8px 10px",
+                      background: "#F7F3EA",
+                      border: "1px solid var(--line)",
+                      borderRadius: 4,
+                      color: "#473d31",
+                      fontFamily: "monospace",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      navigator.clipboard.writeText(dadosPixModal.brCode);
+                      setPixCopiado(true);
+                      showToast("✓ Código Pix copiado para a área de transferência!");
+                      setTimeout(() => setPixCopiado(false), 3000);
+                    }}
+                    style={{
+                      padding: "8px 14px",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      whiteSpace: "nowrap",
+                      background: pixCopiado ? "#15803D" : "var(--ink)",
+                    }}
+                  >
+                    {pixCopiado ? "✓ Copiado!" : "📋 Copiar"}
+                  </button>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: "#F0FDF4",
+                  border: "1px solid #BBF7D0",
+                  color: "#166534",
+                  borderRadius: 6,
+                  padding: "10px 12px",
+                  fontSize: 12,
+                  marginBottom: 16,
+                  lineHeight: 1.4,
+                  textAlign: "left",
+                }}
+              >
+                ✓ <strong>Liberação Automática:</strong> Assim que você pagar no banco, o sistema reconhece a compensação e libera o acesso na hora.
+              </div>
+
+              <div className="modal-footer-row" style={{ marginTop: 0, display: "flex", gap: 8, justifyContent: "center" }}>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ fontSize: 13, padding: "9px 16px", background: "var(--route-green)" }}
+                  onClick={() => {
+                    carregarAssinatura();
+                    showToast("Verificando se o Pix foi compensado...");
+                  }}
+                >
+                  ↻ Já paguei / Atualizar Liberação
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  style={{ fontSize: 13, padding: "9px 16px" }}
+                  onClick={() => setDadosPixModal(null)}
                 >
                   Fechar
                 </button>
