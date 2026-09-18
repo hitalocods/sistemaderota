@@ -65,6 +65,12 @@ interface ComprovanteItem {
   qtd_editada: number;
 }
 
+interface ComprovanteDia {
+  data: string;
+  quentinhas: string | number;
+  receita: string | number;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -122,6 +128,7 @@ export default function RelatoriosPage() {
   const [cobDe, setCobDe] = useState(toLocalDateStr());
   const [cobAte, setCobAte] = useState(toLocalDateStr());
   const [cobDados, setCobDados] = useState<ComprovanteItem[] | null>(null);
+  const [cobPorDia, setCobPorDia] = useState<ComprovanteDia[]>([]);
   const [cobEditado, setCobEditado] = useState<{ [id: number]: number }>({});
   const [cobCarregando, setCobCarregando] = useState(false);
 
@@ -313,6 +320,7 @@ export default function RelatoriosPage() {
       const data = await res.json();
       if (!res.ok) { showToast(data.error || "Erro ao gerar comprovante"); return; }
       setCobDados((data.itens || []).map((item: ComprovanteItem) => ({ ...item, qtd_editada: Number(item.quentinhas) })));
+      setCobPorDia(data.por_dia || []);
       setCobEditado({});
     } catch { showToast("Erro de rede"); }
     finally { setCobCarregando(false); }
@@ -328,21 +336,39 @@ export default function RelatoriosPage() {
     const grupo = grupos.find((g) => g.id === Number(cobGrupoId));
     const periodoStr = cobDe === cobAte ? fmtDate(cobDe) : `${fmtDate(cobDe)} a ${fmtDate(cobAte)}`;
     let txt = `🍱 *QUENTINHAS DA RÊ — COMPROVANTE DE COBRANÇA*\n`;
+    if (grupo) txt += `👤 Cliente / Grupo: *${grupo.nome}*\n`;
     txt += `📅 Período: ${periodoStr}\n`;
-    if (grupo) txt += `👤 Grupo: *${grupo.nome}*\n`;
-    txt += `------------------------------------\n\n*RESUMO POR LOCAL:*\n`;
+    txt += `------------------------------------\n\n`;
+
+    // 1. Discriminado por dia
+    if (cobPorDia && cobPorDia.length > 0) {
+      txt += `📅 *ENTREGAS POR DATA:*\n`;
+      cobPorDia.forEach((d) => {
+        const dStr = d.data.slice(0, 10);
+        const partes = dStr.split("-").map(Number);
+        const dataObj = new Date(partes[0], partes[1] - 1, partes[2]);
+        const diaSemana = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][dataObj.getDay()];
+        txt += `• ${fmtDate(dStr)} (${diaSemana}): *${d.quentinhas} quentinhas*\n`;
+      });
+      txt += `\n`;
+    }
+
+    // 2. Resumo por local
+    txt += `📍 *RESUMO POR LOCAL:*\n`;
     let total = 0, totalVal = 0;
     cobDados.forEach((item) => {
       const sub = item.qtd_editada * Number(item.valor_unidade);
       total += item.qtd_editada; totalVal += sub;
-      txt += `• ${item.nome}: *${item.qtd_editada} quentinhas* — R$ ${sub.toFixed(2)}\n`;
+      txt += `• ${item.nome}: *${item.qtd_editada} un.* (R$ ${Number(item.valor_unidade).toFixed(2)}/un) — R$ ${sub.toFixed(2)}\n`;
     });
+
+    // 3. Soma final
     txt += `\n------------------------------------\n`;
-    txt += `📦 *Total:* ${total} un.\n`;
-    txt += `💰 *Valor total:* R$ ${totalVal.toFixed(2)}\n`;
+    txt += `📦 *TOTAL GERAL:* ${total} quentinhas\n`;
+    txt += `💰 *VALOR TOTAL A PAGAR:* R$ ${totalVal.toFixed(2)}\n`;
     txt += `------------------------------------\n✓ Gerado pelo sistema Quentinhas da Rê`;
     navigator.clipboard.writeText(txt);
-    showToast("✓ Comprovante copiado!");
+    showToast("✓ Comprovante copiado com datas e total!");
   }
 
   const locaisAtivos = useMemo(() => locais.filter((l) => l.ativo), [locais]);
@@ -747,6 +773,29 @@ export default function RelatoriosPage() {
                   </div>
                 ) : (
                   <>
+                    {/* Resumo visual por data */}
+                    {cobPorDia.length > 0 && (
+                      <div style={{ padding: "12px 16px", background: "#FAF8F5", borderBottom: "1px solid var(--line)" }}>
+                        <div style={{ fontSize: 11.5, fontWeight: 700, color: "#5a5548", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+                          📅 Entregas por Data ({cobPorDia.length} {cobPorDia.length === 1 ? "dia" : "dias"})
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                          {cobPorDia.map((d) => {
+                            const dStr = d.data.slice(0, 10);
+                            const partes = dStr.split("-").map(Number);
+                            const dataObj = new Date(partes[0], partes[1] - 1, partes[2]);
+                            const diaSemana = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][dataObj.getDay()];
+                            return (
+                              <div key={d.data} style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 6, padding: "6px 12px", fontSize: 12.5, boxShadow: "1px 1px 0 rgba(0,0,0,0.03)" }}>
+                                <span style={{ color: "#6b6558" }}>{fmtDate(dStr)} ({diaSemana}):</span>{" "}
+                                <strong style={{ color: "var(--ink)" }}>{d.quentinhas} un.</strong>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     <div style={{ overflowX: "auto" }}>
                       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                         <thead>

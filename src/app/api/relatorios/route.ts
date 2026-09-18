@@ -30,7 +30,7 @@ export async function GET(req: Request) {
     const localIds = locaisDoGrupo.map((r: Record<string, number>) => r.local_id);
 
     if (localIds.length === 0) {
-      return NextResponse.json({ itens: [], grupo_vazio: true });
+      return NextResponse.json({ itens: [], por_dia: [], grupo_vazio: true });
     }
 
     const itens = await sql`
@@ -50,7 +50,22 @@ export async function GET(req: Request) {
       order by l.nome asc
     `;
 
-    return NextResponse.json({ itens });
+    // Entregas discriminadas por dia
+    const porDia = await sql`
+      select
+        r.data::text as data,
+        coalesce(sum(r.quantidade), 0) as quentinhas,
+        coalesce(sum(r.receita), 0) as receita
+      from rotas r
+      where r.local_id = any(${localIds}::int[])
+        and (${de}::date is null or r.data >= ${de}::date)
+        and (${ate}::date is null or r.data <= ${ate}::date)
+        and r.status = 'entregue'
+      group by r.data
+      order by r.data asc
+    `;
+
+    return NextResponse.json({ itens, por_dia: porDia });
   }
 
   // ── MODO RELATÓRIO GERAL (padrão) ─────────────────────────────────────────
