@@ -3,10 +3,57 @@ import { sql } from "@/lib/db";
 
 // GET /api/relatorios?de=2026-09-01&ate=2026-09-07
 // Considera apenas rotas com status 'entregue' nas somas de quentinhas/receita.
+// GET /api/relatorios?tipo=cobranca&locais=1,2,3&de=...&ate=...
+// Retorna totais de quentinhas e receita por local para comprovante de cobrança.
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
+  const tipo = searchParams.get("tipo");
   const deParam = searchParams.get("de");
   const ateParam = searchParams.get("ate");
+
+  // ── MODO COBRANÇA POR GRUPO ───────────────────────────────────────────────
+  if (tipo === "cobranca") {
+    const grupoIdParam = searchParams.get("grupo_id");
+    const grupoId = grupoIdParam ? parseInt(grupoIdParam, 10) : null;
+
+    if (!grupoId || isNaN(grupoId)) {
+      return NextResponse.json({ error: "Informe o grupo_id" }, { status: 400 });
+    }
+
+    const de = deParam && deParam.trim() !== "" ? deParam.trim() : null;
+    const ate = ateParam && ateParam.trim() !== "" ? ateParam.trim() : null;
+
+    // Buscar locais do grupo
+    const locaisDoGrupo = await sql`
+      select local_id from grupos_cobranca_locais where grupo_id = ${grupoId}
+    `;
+    const localIds = locaisDoGrupo.map((r: Record<string, number>) => r.local_id);
+
+    if (localIds.length === 0) {
+      return NextResponse.json({ itens: [], grupo_vazio: true });
+    }
+
+    const itens = await sql`
+      select
+        l.id,
+        l.nome,
+        l.cliente_nome,
+        l.valor_unidade,
+        coalesce(sum(r.quantidade) filter (where r.status = 'entregue'), 0) as quentinhas,
+        coalesce(sum(r.receita)   filter (where r.status = 'entregue'), 0) as receita
+      from locais l
+      left join rotas r on r.local_id = l.id
+        and (${de}::date is null or r.data >= ${de}::date)
+        and (${ate}::date is null or r.data <= ${ate}::date)
+      where l.id = any(${localIds}::int[])
+      group by l.id, l.nome, l.cliente_nome, l.valor_unidade
+      order by l.nome asc
+    `;
+
+    return NextResponse.json({ itens });
+  }
+
+  // ── MODO RELATÓRIO GERAL (padrão) ─────────────────────────────────────────
 
   const de = deParam && deParam.trim() !== "" ? deParam.trim() : null;
   const ate = ateParam && ateParam.trim() !== "" ? ateParam.trim() : null;

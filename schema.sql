@@ -62,3 +62,17 @@ create table if not exists assinaturas (
   criado_em           timestamptz not null default now(),
   atualizado_em       timestamptz not null default now()
 );
+
+-- Grupos de Cobrança (para comprovantes por cliente)
+create table if not exists grupos_cobranca (
+  id        serial primary key,
+  nome      text not null,
+  criado_em timestamptz not null default now()
+);
+
+-- Locais vinculados a cada grupo de cobrança
+create table if not exists grupos_cobranca_locais (
+  grupo_id  integer not null references grupos_cobranca(id) on delete cascade,
+  local_id  integer not null references locais(id) on delete cascade,
+  primary key (grupo_id, local_id)
+);

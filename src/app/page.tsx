@@ -136,6 +136,13 @@ export default function Home() {
   // Filtro de Data para a listagem de Rotas (Visão Geral)
   const [dataFiltro, setDataFiltro] = useState<string>(() => toLocalDateStr());
 
+  // ── Calendário de Rotas Despachadas ──────────────────────────────────────────
+  const [calDiasComRotas, setCalDiasComRotas] = useState<string[]>([]);
+  const [calMesAtual, setCalMesAtual] = useState<string>(() => toLocalDateStr().slice(0, 7));
+  const [calCarregandoDias, setCalCarregandoDias] = useState(false);
+  const [duplicandoRotas, setDuplicandoRotas] = useState(false);
+  const [modalDuplicarAberto, setModalDuplicarAberto] = useState(false);
+
   // Dados do Sistema
   const [locais, setLocais] = useState<Local[]>([]);
   const [motoboys, setMotoboys] = useState<Motoboy[]>([]);
@@ -1154,6 +1161,78 @@ export default function Home() {
     showToast("Ordem de entregas restaurada para o padrão.");
   };
 
+  // ── Calendário: carrega quais dias do mês têm rotas ─────────────────────────
+  async function carregarDiasComRotas(mes: string) {
+    if (!usuario) return;
+    try {
+      setCalCarregandoDias(true);
+      const [ano, mesNum] = mes.split("-");
+      const ultimoDia = new Date(Number(ano), Number(mesNum), 0).getDate();
+      const de = `${mes}-01`;
+      const ate = `${mes}-${String(ultimoDia).padStart(2, "0")}`;
+      const res = await fetch(`/api/rotas?de=${de}&ate=${ate}`);
+      if (res.ok) {
+        const dados: Rota[] = await res.json();
+        const dias = Array.from(new Set(dados.map((r) => r.data.slice(0, 10))));
+        setCalDiasComRotas(dias);
+      }
+    } catch {
+      // silencioso
+    } finally {
+      setCalCarregandoDias(false);
+    }
+  }
+
+  // Carrega dias do mês sempre que o mês do calendário mudar
+  useEffect(() => {
+    if (usuario && adminTab === "geral") {
+      carregarDiasComRotas(calMesAtual);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calMesAtual, usuario, adminTab]);
+
+  // Quando a data filtro muda de mês, atualiza o calendário
+  useEffect(() => {
+    const mesDaData = dataFiltro.slice(0, 7);
+    if (mesDaData !== calMesAtual) {
+      setCalMesAtual(mesDaData);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataFiltro]);
+
+  // Duplicar rotas de um dia para outro
+  async function handleDuplicarRotas(de: string, para: string) {
+    try {
+      setDuplicandoRotas(true);
+      const res = await fetch("/api/rotas/duplicar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ de, para }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || "Erro ao duplicar rotas");
+        return;
+      }
+      showToast(`✓ ${data.duplicadas} rota(s) copiada(s) para ${para.split("-").reverse().join("/")}!`);
+      setModalDuplicarAberto(false);
+      setDataFiltro(para);
+      await carregarTudo(true);
+      await carregarDiasComRotas(para.slice(0, 7));
+    } catch {
+      showToast("Erro de rede ao duplicar rotas");
+    } finally {
+      setDuplicandoRotas(false);
+    }
+  }
+
+  // Helper: próximo dia
+  function proximoDia(data: string): string {
+    const d = new Date(data + "T12:00:00");
+    d.setDate(d.getDate() + 1);
+    return toLocalDateStr(d);
+  }
+
   // Filtro de pesquisa com lupinha na tabela de rotas despachadas
   const rotasDespachadasFiltradas = useMemo(() => {
     if (!buscaRotasDespachadas.trim()) return rotas;
@@ -1409,12 +1488,24 @@ export default function Home() {
                 >
                   Motoboys ({motoboys.filter((m) => m.ativo).length})
                 </button>
-                <button
-                  className={adminTab === "relatorios" ? "active" : ""}
-                  onClick={() => setAdminTab("relatorios")}
+                <a
+                  href="/relatorios"
+                  style={{
+                    display: "block",
+                    padding: "10px 16px",
+                    fontSize: 14,
+                    fontWeight: 500,
+                    color: "var(--ink)",
+                    textDecoration: "none",
+                    borderRadius: 4,
+                    background: "transparent",
+                    transition: "background 0.15s",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--paper-alt)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                 >
-                  Relatórios
-                </button>
+                  📊 Relatórios ↗
+                </a>
                 <button
                   type="button"
                   onClick={() => setModalAssinaturaAberto(true)}
@@ -1443,6 +1534,223 @@ export default function Home() {
                 {/* 1. ABA: VISÃO GERAL */}
                 {adminTab === "geral" && (
                   <div>
+                    {/* ── CALENDÁRIO DE ROTAS DESPACHADAS ── */}
+                    <div style={{ marginBottom: 20 }}>
+                      {/* Cabeçalho do calendário */}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            style={{ padding: "4px 10px", fontSize: 12 }}
+                            onClick={() => {
+                              const [ano, mes] = calMesAtual.split("-").map(Number);
+                              const d = new Date(ano, mes - 2, 1);
+                              setCalMesAtual(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+                            }}
+                            title="Mês anterior"
+                          >
+                            ◀
+                          </button>
+                          <span style={{ fontWeight: 700, fontSize: 14, minWidth: 120, textAlign: "center" }}>
+                            {new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(
+                              new Date(calMesAtual + "-15")
+                            )}
+                          </span>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            style={{ padding: "4px 10px", fontSize: 12 }}
+                            onClick={() => {
+                              const [ano, mes] = calMesAtual.split("-").map(Number);
+                              const d = new Date(ano, mes, 1);
+                              setCalMesAtual(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+                            }}
+                            title="Próximo mês"
+                          >
+                            ▶
+                          </button>
+                        </div>
+
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <button
+                            type="button"
+                            className={`date-badge-btn ${dataFiltro === toLocalDateStr() ? "active" : ""}`}
+                            onClick={() => setDataFiltro(toLocalDateStr())}
+                          >
+                            Hoje
+                          </button>
+                          <input
+                            type="date"
+                            value={dataFiltro}
+                            onChange={(e) => setDataFiltro(e.target.value)}
+                            style={{
+                              padding: "4px 8px",
+                              border: "1px solid var(--line)",
+                              background: "#fff",
+                              fontFamily: "inherit",
+                              fontSize: 12,
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Grade do Calendário */}
+                      {(() => {
+                        const [ano, mes] = calMesAtual.split("-").map(Number);
+                        const primeiroDia = new Date(ano, mes - 1, 1).getDay(); // 0=dom
+                        const ultimoDia = new Date(ano, mes, 0).getDate();
+                        const hoje = toLocalDateStr();
+
+                        const dias: (number | null)[] = [];
+                        for (let i = 0; i < primeiroDia; i++) dias.push(null);
+                        for (let d = 1; d <= ultimoDia; d++) dias.push(d);
+
+                        return (
+                          <div>
+                            {/* Cabeçalhos dos dias da semana */}
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3, marginBottom: 3 }}>
+                              {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((d) => (
+                                <div key={d} style={{ textAlign: "center", fontSize: 10, fontWeight: 700, color: "#8a8372", padding: "2px 0" }}>
+                                  {d}
+                                </div>
+                              ))}
+                            </div>
+                            {/* Células dos dias */}
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 3 }}>
+                              {dias.map((dia, idx) => {
+                                if (dia === null) return <div key={`empty-${idx}`} />;
+                                const dateStr = `${calMesAtual}-${String(dia).padStart(2, "0")}`;
+                                const temRotas = calDiasComRotas.includes(dateStr);
+                                const isHoje = dateStr === hoje;
+                                const isSelecionado = dateStr === dataFiltro;
+
+                                return (
+                                  <button
+                                    key={dateStr}
+                                    type="button"
+                                    onClick={() => setDataFiltro(dateStr)}
+                                    title={temRotas ? `${dia} — tem rotas` : `${dia}`}
+                                    style={{
+                                      position: "relative",
+                                      padding: "6px 4px",
+                                      fontSize: 12,
+                                      fontWeight: isSelecionado || isHoje ? 700 : 400,
+                                      border: isSelecionado
+                                        ? "2px solid var(--ink)"
+                                        : isHoje
+                                        ? "1px solid var(--kraft)"
+                                        : "1px solid transparent",
+                                      borderRadius: 6,
+                                      background: isSelecionado
+                                        ? "var(--ink)"
+                                        : isHoje
+                                        ? "#FFF8E7"
+                                        : temRotas
+                                        ? "#F0F7EC"
+                                        : "#FAF8F5",
+                                      color: isSelecionado ? "#fff" : "var(--ink)",
+                                      cursor: "pointer",
+                                      textAlign: "center",
+                                      lineHeight: 1.2,
+                                    }}
+                                  >
+                                    {dia}
+                                    {temRotas && (
+                                      <span
+                                        style={{
+                                          display: "block",
+                                          width: 5,
+                                          height: 5,
+                                          borderRadius: "50%",
+                                          background: isSelecionado ? "#fff" : "var(--route-green)",
+                                          margin: "2px auto 0",
+                                        }}
+                                      />
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Botão de duplicar rotas */}
+                      {calDiasComRotas.includes(dataFiltro) && (
+                        <div
+                          style={{
+                            marginTop: 10,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            padding: "8px 12px",
+                            background: "#FFFBF2",
+                            border: "1px dashed #E2D9C8",
+                            borderRadius: 6,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <span style={{ fontSize: 12, color: "#6b6558", flex: 1 }}>
+                            📋 <strong>{rotas.length} rota(s)</strong> em {dataFiltro.split("-").reverse().join("/")}
+                          </span>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            style={{ fontSize: 12, padding: "5px 12px", whiteSpace: "nowrap" }}
+                            onClick={() => setModalDuplicarAberto(true)}
+                            title={`Duplicar rotas de ${dataFiltro} para ${proximoDia(dataFiltro)}`}
+                          >
+                            📋 Duplicar para {proximoDia(dataFiltro).split("-").reverse().join("/")}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Modal de confirmação de duplicação */}
+                    {modalDuplicarAberto && (
+                      <div
+                        style={{
+                          position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+                          zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center",
+                        }}
+                      >
+                        <div
+                          style={{
+                            background: "#FFFDF9", border: "2px solid var(--ink)",
+                            boxShadow: "6px 6px 0 rgba(0,0,0,0.2)",
+                            padding: "28px 24px", maxWidth: 380, width: "90%",
+                          }}
+                        >
+                          <h3 style={{ margin: "0 0 12px", fontSize: 16 }}>📋 Duplicar Rotas</h3>
+                          <p style={{ fontSize: 14, color: "#4a4538", lineHeight: 1.5, margin: "0 0 20px" }}>
+                            Deseja copiar todas as <strong>{rotas.length} rotas</strong> do dia{" "}
+                            <strong>{dataFiltro.split("-").reverse().join("/")}</strong> para o dia{" "}
+                            <strong>{proximoDia(dataFiltro).split("-").reverse().join("/")}</strong> com status pendente?
+                          </p>
+                          <div style={{ display: "flex", gap: 10 }}>
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              onClick={() => setModalDuplicarAberto(false)}
+                              disabled={duplicandoRotas}
+                              style={{ flex: 1 }}
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              className="btn"
+                              onClick={() => handleDuplicarRotas(dataFiltro, proximoDia(dataFiltro))}
+                              disabled={duplicandoRotas}
+                              style={{ flex: 1 }}
+                            >
+                              {duplicandoRotas ? "Duplicando..." : "✓ Confirmar"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     {/* Filtro de Data Rápido */}
                     <div className="panel-title" style={{ marginBottom: 16 }}>
                       <div className="date-selector-row">
@@ -1506,9 +1814,50 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* Grade: Tabela de Rotas + Formulário Nova Rota */}
-                    <div className="grid-2">
-                      <div>
+                    {/* Grade: Formulário Nova Rota (no topo no mobile/tablet) + Cards/Tabela de Rotas Despachadas */}
+                    <div className="grid-2-routes">
+                      {/* Formulário: Nova Rota */}
+                      <div className="new-route">
+                        <div className="panel-title">Nova rota</div>
+                        <form onSubmit={handleCriarRota}>
+                          {/* Local com Lupa e Busca Dinâmica */}
+                          <SearchableSelect
+                            label="Local de entrega"
+                            placeholder="Buscar ou selecionar local..."
+                            options={locaisOptions}
+                            value={novaRotaLocalId}
+                            onChange={(id) => setNovaRotaLocalId(id)}
+                            required
+                          />
+
+                          {/* Motoboy com Lupa e Busca Dinâmica */}
+                          <SearchableSelect
+                            label="Motoboy responsável"
+                            placeholder="Buscar ou selecionar motoboy..."
+                            options={motoboysOptions}
+                            value={novaRotaMotoboyId}
+                            onChange={(id) => setNovaRotaMotoboyId(id)}
+                            required
+                          />
+
+                          <div className="field">
+                            <label>Quantidade de quentinhas</label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={novaRotaQtd}
+                              onChange={(e) => setNovaRotaQtd(parseInt(e.target.value) || 0)}
+                              required
+                            />
+                          </div>
+
+                          <button className="btn" type="submit" style={{ width: "100%" }} disabled={criandoRota}>
+                            {criandoRota ? "Criando..." : "Despachar Rota"}
+                          </button>
+                        </form>
+                      </div>
+
+                      <div className="rotas-table-wrap">
                         <div className="panel-title">
                           <span>
                             Rotas despachadas ({dataFiltro})
@@ -1734,47 +2083,6 @@ export default function Home() {
                             </tbody>
                           </table>
                         </div>
-                      </div>
-
-                      {/* Formulário: Nova Rota */}
-                      <div className="new-route">
-                        <div className="panel-title">Nova rota</div>
-                        <form onSubmit={handleCriarRota}>
-                          {/* Local com Lupa e Busca Dinâmica */}
-                          <SearchableSelect
-                            label="Local de entrega"
-                            placeholder="Buscar ou selecionar local..."
-                            options={locaisOptions}
-                            value={novaRotaLocalId}
-                            onChange={(id) => setNovaRotaLocalId(id)}
-                            required
-                          />
-
-                          {/* Motoboy com Lupa e Busca Dinâmica */}
-                          <SearchableSelect
-                            label="Motoboy responsável"
-                            placeholder="Buscar ou selecionar motoboy..."
-                            options={motoboysOptions}
-                            value={novaRotaMotoboyId}
-                            onChange={(id) => setNovaRotaMotoboyId(id)}
-                            required
-                          />
-
-                          <div className="field">
-                            <label>Quantidade de quentinhas</label>
-                            <input
-                              type="number"
-                              min="1"
-                              value={novaRotaQtd}
-                              onChange={(e) => setNovaRotaQtd(parseInt(e.target.value) || 0)}
-                              required
-                            />
-                          </div>
-
-                          <button className="btn" type="submit" style={{ width: "100%" }} disabled={criandoRota}>
-                            {criandoRota ? "Criando..." : "Despachar Rota"}
-                          </button>
-                        </form>
                       </div>
                     </div>
 
@@ -2091,423 +2399,6 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* 4. ABA: RELATÓRIOS E DETALHAMENTO DE ROTAS */}
-                {adminTab === "relatorios" && (
-                  <div>
-                    <div className="panel-title">
-                      <div>
-                        <span style={{ fontSize: 16 }}>Relatórios Operacionais e Financeiros</span>
-                        <div style={{ fontSize: 12, color: "#6b6558", fontWeight: 400, marginTop: 2 }}>
-                          Consolidado de produção, entregas e acertos com motoboys
-                        </div>
-                      </div>
-
-                      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                        <div className="filters" style={{ margin: 0, flexWrap: "wrap", gap: 6 }}>
-                          <button
-                            type="button"
-                            className={relTipoFiltro === "hoje" ? "active" : ""}
-                            onClick={() => {
-                              setRelTipoFiltro("hoje");
-                              carregarRelatorioComFiltro("hoje");
-                            }}
-                          >
-                            Hoje
-                          </button>
-                          <button
-                            type="button"
-                            className={relTipoFiltro === "dia_especifico" ? "active" : ""}
-                            onClick={() => {
-                              setRelTipoFiltro("dia_especifico");
-                              carregarRelatorioComFiltro("dia_especifico", relDiaEscolhido);
-                            }}
-                          >
-                            Escolher Dia
-                          </button>
-                          <button
-                            type="button"
-                            className={relTipoFiltro === "este_mes" ? "active" : ""}
-                            onClick={() => {
-                              setRelTipoFiltro("este_mes");
-                              carregarRelatorioComFiltro("este_mes");
-                            }}
-                          >
-                            Este Mês
-                          </button>
-                          <button
-                            type="button"
-                            className={relTipoFiltro === "mes_especifico" ? "active" : ""}
-                            onClick={() => {
-                              setRelTipoFiltro("mes_especifico");
-                              carregarRelatorioComFiltro("mes_especifico", undefined, relMesEscolhido);
-                            }}
-                          >
-                            Escolher Mês
-                          </button>
-                          <button
-                            type="button"
-                            className={relTipoFiltro === "ano" ? "active" : ""}
-                            onClick={() => {
-                              setRelTipoFiltro("ano");
-                              carregarRelatorioComFiltro("ano", undefined, undefined, relAnoEscolhido);
-                            }}
-                          >
-                            Ano ({relAnoEscolhido})
-                          </button>
-                          <button
-                            type="button"
-                            className={relTipoFiltro === "tudo" ? "active" : ""}
-                            onClick={() => {
-                              setRelTipoFiltro("tudo");
-                              carregarRelatorioComFiltro("tudo");
-                            }}
-                          >
-                            Todo o Histórico
-                          </button>
-                        </div>
-
-                        <button type="button" className="btn-whatsapp" onClick={handleCopiarWhatsApp}>
-                          <span>💬</span>
-                          <span>Copiar Fechamento para WhatsApp</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Controles Dinâmicos quando o usuário escolhe Dia ou Mês específico */}
-                    <div className="filter-subbar">
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                        <span style={{ fontSize: 13, color: "#6b6558" }}>Período filtrado:</span>
-                        <span
-                          style={{
-                            fontSize: 13,
-                            fontWeight: 700,
-                            color: "var(--ink)",
-                            background: "var(--paper-alt)",
-                            padding: "4px 10px",
-                            borderRadius: 4,
-                            border: "1px solid var(--line)",
-                          }}
-                        >
-                          {relPeriodoDescricao}
-                        </span>
-
-                        {relTipoFiltro === "dia_especifico" && (
-                          <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                            <label style={{ fontSize: 12, color: "#6b6558" }}>Selecionar data:</label>
-                            <input
-                              type="date"
-                              value={relDiaEscolhido}
-                              onChange={(e) => {
-                                setRelDiaEscolhido(e.target.value);
-                                carregarRelatorioComFiltro("dia_especifico", e.target.value);
-                              }}
-                              style={{
-                                padding: "4px 8px",
-                                border: "1px solid var(--line)",
-                                background: "#fff",
-                                fontSize: 13,
-                              }}
-                            />
-                          </div>
-                        )}
-
-                        {relTipoFiltro === "mes_especifico" && (
-                          <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                            <label style={{ fontSize: 12, color: "#6b6558" }}>Selecionar mês:</label>
-                            <input
-                              type="month"
-                              value={relMesEscolhido}
-                              onChange={(e) => {
-                                setRelMesEscolhido(e.target.value);
-                                carregarRelatorioComFiltro("mes_especifico", undefined, e.target.value);
-                              }}
-                              style={{
-                                padding: "4px 8px",
-                                border: "1px solid var(--line)",
-                                background: "#fff",
-                                fontSize: 13,
-                              }}
-                            />
-                          </div>
-                        )}
-
-                        {relTipoFiltro === "ano" && (
-                          <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                            <label style={{ fontSize: 12, color: "#6b6558" }}>Ano:</label>
-                            <select
-                              value={relAnoEscolhido}
-                              onChange={(e) => {
-                                setRelAnoEscolhido(e.target.value);
-                                carregarRelatorioComFiltro("ano", undefined, undefined, e.target.value);
-                              }}
-                              style={{
-                                padding: "4px 8px",
-                                border: "1px solid var(--line)",
-                                background: "#fff",
-                                fontSize: 13,
-                              }}
-                            >
-                              <option value="2026">2026</option>
-                              <option value="2025">2025</option>
-                              <option value="2024">2024</option>
-                            </select>
-                          </div>
-                        )}
-                      </div>
-
-                      <span style={{ fontSize: 11.5, color: "#7a7364" }}>
-                        Valores calculados em tempo real
-                      </span>
-                    </div>
-
-                    {/* Cards de Métricas Operacionais e Financeiras */}
-                    <div className="cards cards-5">
-                      <div className="card">
-                        <div className="label">Quentinhas entregues</div>
-                        <div className="value">
-                          {relatorio?.financeiro?.quentinhas_total ??
-                            relatorio?.por_motoboy.reduce((acc, m) => acc + Number(m.quentinhas), 0) ??
-                            0}
-                          <small> un.</small>
-                        </div>
-                      </div>
-
-                      <div className="card">
-                        <div className="label">Total de viagens</div>
-                        <div className="value">
-                          {relatorio?.financeiro?.rotas_total ??
-                            relatorio?.por_motoboy.reduce((acc, m) => acc + Number(m.rotas), 0) ??
-                            0}
-                          <small> rotas</small>
-                        </div>
-                      </div>
-
-                      <div className="card">
-                        <div className="label">Faturamento bruto</div>
-                        <div className="value" style={{ fontSize: 20 }}>
-                          R$ {relatorio ? relatorio.financeiro.receita.toFixed(2) : "0.00"}
-                        </div>
-                      </div>
-
-                      <div className="card">
-                        <div className="label">Custo frete (motoboys)</div>
-                        <div className="value" style={{ fontSize: 20, color: "var(--stamp-red)" }}>
-                          R$ {relatorio ? relatorio.financeiro.custo.toFixed(2) : "0.00"}
-                        </div>
-                      </div>
-
-                      <div className="card">
-                        <div className="label">Lucro líquido</div>
-                        <div
-                          className="value"
-                          style={{
-                            fontSize: 20,
-                            color:
-                              relatorio && relatorio.financeiro.saldo >= 0
-                                ? "var(--route-green)"
-                                : "var(--stamp-red)",
-                          }}
-                        >
-                          R$ {relatorio ? relatorio.financeiro.saldo.toFixed(2) : "0.00"}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Tabela Detalhada com Accordion de Rotas por Motoboy */}
-                    <div style={{ marginBottom: 28 }}>
-                      <div className="panel-title" style={{ fontSize: 13.5, color: "var(--ink)", marginBottom: 8 }}>
-                        <span>
-                          Produção e Extrato Individual de Rotas por Entregador{" "}
-                          <span style={{ fontSize: 12, fontWeight: 400, color: "#7a7364" }}>
-                            (clique na linha do motoboy para expandir todas as rotas dele)
-                          </span>
-                        </span>
-                      </div>
-
-                      <div className="table-container">
-                        <table className="responsive-table">
-                          <thead>
-                            <tr>
-                              <th>Entregador (Motoboy)</th>
-                              <th className="num">Rotas Realizadas</th>
-                              <th className="num">Quentinhas Entregues</th>
-                              <th className="num">Total a Receber (Custo)</th>
-                              <th style={{ textAlign: "center", width: 140 }}>Detalhamento</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {relatorio?.por_motoboy && relatorio.por_motoboy.length > 0 ? (
-                              relatorio.por_motoboy.map((m) => {
-                                const isOpen = motoboyExpandidoId === m.id;
-                                const rotasDesteMotoboy = (relatorio.rotas_detalhadas || []).filter(
-                                  (r) => r.motoboy_id === m.id
-                                );
-
-                                return (
-                                  <React.Fragment key={m.id}>
-                                    <tr
-                                      className={`accordion-row ${isOpen ? "is-open" : ""}`}
-                                      onClick={() =>
-                                        setMotoboyExpandidoId(isOpen ? null : m.id)
-                                      }
-                                      title="Clique para ver o extrato de rotas deste entregador"
-                                    >
-                                      <td data-label="Entregador">
-                                        <span className="accordion-arrow">
-                                          {isOpen ? "▼" : "▶"}
-                                        </span>
-                                        <strong>{m.nome}</strong>
-                                      </td>
-                                      <td data-label="Rotas" className="num">{m.rotas} rotas</td>
-                                      <td data-label="Quentinhas" className="num" style={{ fontWeight: 700 }}>
-                                        {m.quentinhas} un.
-                                      </td>
-                                      <td data-label="A Receber" className="num" style={{ fontWeight: 700, color: "var(--ink)" }}>
-                                        R$ {Number(m.custo).toFixed(2)}
-                                      </td>
-                                      <td data-label="Ações" className="actions-cell" style={{ textAlign: "center" }}>
-                                        <button
-                                          type="button"
-                                          className="btn-secondary"
-                                          style={{ padding: "4px 10px", fontSize: 11 }}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setMotoboyExpandidoId(isOpen ? null : m.id);
-                                          }}
-                                        >
-                                          {isOpen ? "Ocultar ▲" : `Ver rotas (${rotasDesteMotoboy.length}) ▼`}
-                                        </button>
-                                      </td>
-                                    </tr>
-
-                                    {/* Linha de Detalhamento Expandida */}
-                                    {isOpen && (
-                                      <tr className="accordion-details-row">
-                                        <td colSpan={5} className="accordion-details-cell">
-                                          <div style={{ padding: "10px 14px" }}>
-                                            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: "#5a5548" }}>
-                                              📋 Extrato de entregas de {m.nome} no período ({rotasDesteMotoboy.length} entregas concluídas):
-                                            </div>
-
-                                            {rotasDesteMotoboy.length === 0 ? (
-                                              <div style={{ padding: 12, color: "#8a8372", fontSize: 12, textAlign: "center" }}>
-                                                Nenhuma rota entregue por este motoboy no período selecionado.
-                                              </div>
-                                            ) : (
-                                              <table className="sub-routes-table responsive-subtable">
-                                                <thead>
-                                                  <tr>
-                                                    <th>Data</th>
-                                                    <th>Entregue às</th>
-                                                    <th>Ponto de Entrega (Destino)</th>
-                                                    <th className="num">Quantidade</th>
-                                                    <th className="num">Taxa do Motoboy</th>
-                                                    <th style={{ textAlign: "center" }}>Status</th>
-                                                  </tr>
-                                                </thead>
-                                                <tbody>
-                                                  {rotasDesteMotoboy.map((r) => {
-                                                    const horaFormatada = r.entregue_em
-                                                      ? new Date(r.entregue_em).toLocaleTimeString("pt-BR", {
-                                                          hour: "2-digit",
-                                                          minute: "2-digit",
-                                                        })
-                                                      : "—";
-
-                                                    const dataFormatada = r.data
-                                                      ? new Date(r.data).toLocaleDateString("pt-BR", {
-                                                          day: "2-digit",
-                                                          month: "2-digit",
-                                                        })
-                                                      : "—";
-
-                                                    return (
-                                                      <tr key={r.id}>
-                                                        <td data-label="Data" style={{ fontFamily: "IBM Plex Mono, monospace" }}>
-                                                          {dataFormatada}
-                                                        </td>
-                                                        <td data-label="Horário" style={{ color: "#6b6558" }}>
-                                                          {horaFormatada}
-                                                        </td>
-                                                        <td data-label="Destino">
-                                                          <strong>{r.local_nome}</strong>
-                                                        </td>
-                                                        <td data-label="Quantidade" className="num" style={{ fontWeight: 700 }}>
-                                                          {r.quantidade} quentinhas
-                                                        </td>
-                                                        <td data-label="Taxa" className="num" style={{ fontWeight: 600 }}>
-                                                          R$ {Number(r.custo).toFixed(2)}
-                                                        </td>
-                                                        <td data-label="Status" style={{ textAlign: "center" }}>
-                                                          <span className="stamp ok" style={{ fontSize: 10, padding: "1px 6px" }}>
-                                                            ENTREGUE
-                                                          </span>
-                                                        </td>
-                                                      </tr>
-                                                    );
-                                                  })}
-                                                </tbody>
-                                              </table>
-                                            )}
-                                          </div>
-                                        </td>
-                                      </tr>
-                                    )}
-                                  </React.Fragment>
-                                );
-                              })
-                            ) : (
-                              <tr>
-                                <td colSpan={5} style={{ textAlign: "center", padding: 24, color: "#8a8372" }}>
-                                  Nenhum dado encontrado para o período.
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
-                    {/* Vendas por Ponto de Entrega */}
-                    <div>
-                      <div className="panel-title" style={{ fontSize: 13.5, color: "var(--ink)", marginBottom: 8 }}>
-                        <span>Vendas e Faturamento por Ponto de Entrega</span>
-                      </div>
-                      <div className="table-container">
-                        <table className="responsive-table">
-                          <thead>
-                            <tr>
-                              <th>Ponto de Entrega (Local)</th>
-                              <th className="num">Quentinhas Entregues</th>
-                              <th className="num">Receita Gerada</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {relatorio?.por_local && relatorio.por_local.length > 0 ? (
-                              relatorio.por_local.map((l) => (
-                                <tr key={l.id}>
-                                  <td data-label="Ponto de Entrega">
-                                    <strong>{l.nome}</strong>
-                                  </td>
-                                  <td data-label="Quentinhas" className="num">{l.quentinhas} un.</td>
-                                  <td data-label="Receita Gerada" className="num" style={{ fontWeight: 700, color: "var(--route-green)" }}>
-                                    R$ {Number(l.receita).toFixed(2)}
-                                  </td>
-                                </tr>
-                              ))
-                            ) : (
-                              <tr>
-                                <td colSpan={3} style={{ textAlign: "center", padding: 24, color: "#8a8372" }}>
-                                  Nenhum dado no período.
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -2552,13 +2443,125 @@ export default function Home() {
                 <div className="m-summary">
                   <div>
                     <span className="n">{rotasMotoboyAtivo.length}</span>
-                    <span className="l">rotas hoje</span>
+                    <span className="l">{dataFiltro === toLocalDateStr() ? "rotas hoje" : `rotas (${dataFiltro.split("-").reverse().slice(0, 2).join("/")})`}</span>
                   </div>
                   <div>
                     <span className="n">
                       {rotasMotoboyAtivo.reduce((acc, r) => acc + Number(r.quantidade), 0)}
                     </span>
                     <span className="l">quentinhas</span>
+                  </div>
+                </div>
+
+                {/* ── Navegador de Histórico de Rotas para o Motoboy ── */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    background: "#FFFDF9",
+                    border: "1px solid var(--line)",
+                    borderRadius: 8,
+                    padding: "8px 12px",
+                    margin: "10px 0 14px",
+                    gap: 6,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 14 }}>📅</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)" }}>
+                      {dataFiltro === toLocalDateStr() ? "Hoje" : dataFiltro.split("-").reverse().join("/")}
+                    </span>
+                    {dataFiltro !== toLocalDateStr() && (
+                      <span
+                        style={{
+                          fontSize: 10.5,
+                          background: "#F5EBE6",
+                          color: "var(--stamp-red)",
+                          padding: "2px 6px",
+                          borderRadius: 4,
+                          fontWeight: 700,
+                        }}
+                      >
+                        HISTÓRICO
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date(dataFiltro + "T12:00:00");
+                        d.setDate(d.getDate() - 1);
+                        setDataFiltro(toLocalDateStr(d));
+                      }}
+                      title="Dia anterior"
+                      style={{
+                        padding: "5px 9px",
+                        fontSize: 12,
+                        border: "1px solid var(--line)",
+                        borderRadius: 4,
+                        background: "#fff",
+                        cursor: "pointer",
+                        fontWeight: 700,
+                      }}
+                    >
+                      ◀
+                    </button>
+                    {dataFiltro !== toLocalDateStr() && (
+                      <button
+                        type="button"
+                        onClick={() => setDataFiltro(toLocalDateStr())}
+                        style={{
+                          padding: "5px 9px",
+                          fontSize: 11.5,
+                          border: "1px solid var(--kraft)",
+                          borderRadius: 4,
+                          background: "var(--kraft)",
+                          color: "#fff",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Hoje
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date(dataFiltro + "T12:00:00");
+                        d.setDate(d.getDate() + 1);
+                        setDataFiltro(toLocalDateStr(d));
+                      }}
+                      title="Próximo dia"
+                      style={{
+                        padding: "5px 9px",
+                        fontSize: 12,
+                        border: "1px solid var(--line)",
+                        borderRadius: 4,
+                        background: "#fff",
+                        cursor: "pointer",
+                        fontWeight: 700,
+                      }}
+                    >
+                      ▶
+                    </button>
+                    <input
+                      type="date"
+                      value={dataFiltro}
+                      onChange={(e) => e.target.value && setDataFiltro(e.target.value)}
+                      style={{
+                        padding: "4px 6px",
+                        fontSize: 12,
+                        border: "1px solid var(--line)",
+                        borderRadius: 4,
+                        background: "#fff",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        maxWidth: 115,
+                      }}
+                    />
                   </div>
                 </div>
 

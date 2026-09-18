@@ -498,6 +498,24 @@ nav.side button.active {
   }
 }
 
+/* Grade de rotas despachadas: formulário Nova Rota à esquerda no desktop e NO TOPO no tablet e celular */
+.grid-2-routes {
+  display: grid;
+  grid-template-columns: 370px 1fr;
+  gap: 24px;
+  margin-bottom: 28px;
+  width: 100%;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .grid-2-routes {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+}
+
 /* Tables Base */
 .table-container {
   overflow-x: auto;
