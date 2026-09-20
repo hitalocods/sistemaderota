@@ -29,6 +29,7 @@ interface Motoboy {
   whatsapp?: string | null;
   valor_rota: string | number;
   ativo: boolean;
+  total_locais?: number;
 }
 
 interface Rota {
@@ -55,6 +56,22 @@ interface Rota {
   ajuste_respondido_em?: string | null;
   carga_conferida?: boolean;
   carga_conferida_em?: string | null;
+}
+
+interface MotoboyLocal {
+  id: number;
+  local_id: number;
+  ordem: number;
+  qtd_padrao: number;
+  ativo: boolean;
+  criado_em: string;
+  local_nome: string;
+  local_cliente_nome?: string | null;
+  local_endereco?: string | null;
+  local_endereco_link?: string | null;
+  local_contato?: string | null;
+  local_valor_unidade: string | number;
+  local_ativo: boolean;
 }
 
 interface RotaDetalhada {
@@ -238,6 +255,20 @@ export default function Home() {
   const [ajustandoRotaId, setAjustandoRotaId] = useState<number | null>(null);
   const [valorAjusteTemp, setValorAjusteTemp] = useState<number>(0);
   const [enviandoAjusteId, setEnviandoAjusteId] = useState<number | null>(null);
+
+  // ── Carteira de Locais por Motoboy ──────────────────────────────────────────
+  const [carteiras, setCarteiras] = useState<Record<number, MotoboyLocal[]>>({});
+  const [carteiraExpandida, setCarteiraExpandida] = useState<number | null>(null);
+  const [carregandoCarteira, setCarregandoCarteira] = useState<number | null>(null);
+  const [despachando, setDespachando] = useState(false);
+  const [modalAddLocalCarteira, setModalAddLocalCarteira] = useState<number | null>(null);
+  const [addLocalCarteiraId, setAddLocalCarteiraId] = useState<number | "">("");
+  const [addLocalCarteiraQtd, setAddLocalCarteiraQtd] = useState<number>(30);
+  const [adicionandoLocalCarteira, setAdicionandoLocalCarteira] = useState(false);
+  const [dragItemIdx, setDragItemIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [editQtdId, setEditQtdId] = useState<{ motoboyId: number; localId: number } | null>(null);
+  const [editQtdVal, setEditQtdVal] = useState<number>(30);
 
   // Toast
   const [toast, setToast] = useState<string | null>(null);
@@ -1143,7 +1174,7 @@ export default function Home() {
     });
   }, [rotasMotoboyOrdenadas, buscaRotasMotoboy]);
 
-  const moverOrdemRota = (rotaId: number, direcao: "cima" | "baixo") => {
+  const moverOrdemRota = async (rotaId: number, direcao: "cima" | "baixo") => {
     const listaAtual = [...rotasMotoboyOrdenadas];
     const index = listaAtual.findIndex((r) => r.id === rotaId);
     if (index === -1) return;
@@ -1161,13 +1192,23 @@ export default function Home() {
     try {
       if (activeMotoId) {
         localStorage.setItem(`ordem_rotas_${activeMotoId}_${dataFiltro}`, JSON.stringify(novosIds));
+        // Persistir ordem fixa permanentemente na carteira do banco de dados!
+        const payloadOrdem = listaAtual.map((r, i) => ({
+          local_id: r.local_id,
+          ordem: i + 1,
+        }));
+        await fetch(`/api/motoboys/${activeMotoId}/locais/ordem`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ordem: payloadOrdem }),
+        });
       }
-    } catch {
-      // ignore
+    } catch (e) {
+      console.error("Erro ao salvar ordem no banco:", e);
     }
   };
 
-  const reordenarRotaParaPosicao = (rotaId: number, novaPosicao: number) => {
+  const reordenarRotaParaPosicao = async (rotaId: number, novaPosicao: number) => {
     const listaAtual = [...rotasMotoboyOrdenadas];
     const index = listaAtual.findIndex((r) => r.id === rotaId);
     if (index === -1) return;
@@ -1182,9 +1223,19 @@ export default function Home() {
     try {
       if (activeMotoId) {
         localStorage.setItem(`ordem_rotas_${activeMotoId}_${dataFiltro}`, JSON.stringify(novosIds));
+        // Persistir ordem fixa permanentemente na carteira do banco de dados!
+        const payloadOrdem = listaAtual.map((r, i) => ({
+          local_id: r.local_id,
+          ordem: i + 1,
+        }));
+        await fetch(`/api/motoboys/${activeMotoId}/locais/ordem`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ordem: payloadOrdem }),
+        });
       }
-    } catch {
-      // ignore
+    } catch (e) {
+      console.error("Erro ao salvar ordem no banco:", e);
     }
   };
 
@@ -1199,6 +1250,132 @@ export default function Home() {
     }
     showToast("Ordem de entregas restaurada para o padrão.");
   };
+
+  // ── Carteira: handlers ──────────────────────────────────────────────────────
+
+  async function carregarCarteira(motoboyId: number) {
+    try {
+      setCarregandoCarteira(motoboyId);
+      const res = await fetch(`/api/motoboys/${motoboyId}/locais`);
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || "Erro ao carregar carteira");
+        return;
+      }
+      setCarteiras((prev) => ({ ...prev, [motoboyId]: data }));
+    } catch {
+      showToast("Erro ao carregar carteira");
+    } finally {
+      setCarregandoCarteira(null);
+    }
+  }
+
+  async function handleAddLocalCarteira(motoboyId: number) {
+    if (!addLocalCarteiraId) { showToast("Selecione um local"); return; }
+    try {
+      setAdicionandoLocalCarteira(true);
+      const res = await fetch(`/api/motoboys/${motoboyId}/locais`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ local_id: Number(addLocalCarteiraId), qtd_padrao: addLocalCarteiraQtd }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || "Erro ao adicionar local"); return; }
+      showToast("✓ Local adicionado à carteira!");
+      setModalAddLocalCarteira(null);
+      setAddLocalCarteiraId("");
+      setAddLocalCarteiraQtd(30);
+      await carregarCarteira(motoboyId);
+      await carregarTudo(true);
+    } catch {
+      showToast("Erro de rede");
+    } finally {
+      setAdicionandoLocalCarteira(false);
+    }
+  }
+
+  async function handleRemoverLocalCarteira(motoboyId: number, localId: number) {
+    try {
+      const res = await fetch(`/api/motoboys/${motoboyId}/locais`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ local_id: localId }),
+      });
+      if (!res.ok) { showToast("Erro ao remover local"); return; }
+      showToast("Local removido da carteira");
+      await carregarCarteira(motoboyId);
+    } catch {
+      showToast("Erro de rede");
+    }
+  }
+
+  async function handleSalvarOrdemCarteira(motoboyId: number, lista: MotoboyLocal[]) {
+    try {
+      const ordemPayload = lista.map((item, idx) => ({ local_id: item.local_id, ordem: idx + 1 }));
+      await fetch(`/api/motoboys/${motoboyId}/locais/ordem`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ordem: ordemPayload }),
+      });
+      setCarteiras((prev) => ({ ...prev, [motoboyId]: lista.map((item, idx) => ({ ...item, ordem: idx + 1 })) }));
+    } catch {
+      showToast("Erro ao salvar ordem");
+    }
+  }
+
+  async function handleSalvarQtdCarteira(motoboyId: number, localId: number, qtd: number) {
+    try {
+      const res = await fetch(`/api/motoboys/${motoboyId}/locais`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ local_id: localId, qtd_padrao: qtd }),
+      });
+      if (!res.ok) { showToast("Erro ao salvar quantidade"); return; }
+      showToast("✓ Quantidade padrão salva!");
+      setEditQtdId(null);
+      await carregarCarteira(motoboyId);
+    } catch {
+      showToast("Erro de rede");
+    }
+  }
+
+  async function handleDespacharCarteira(motoboyId: number) {
+    try {
+      setDespachando(true);
+      const res = await fetch("/api/rotas/despachar-carteiras", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: dataFiltro, motoboy_ids: [motoboyId] }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || "Erro ao despachar"); return; }
+      showToast(`✓ ${data.criadas} rota(s) despachada(s)!${data.puladas ? ` (${data.puladas} já existiam)` : ""}`);
+      await carregarTudo(true);
+    } catch {
+      showToast("Erro de rede ao despachar");
+    } finally {
+      setDespachando(false);
+    }
+  }
+
+  async function handleDespacharTodasCarteiras() {
+    try {
+      setDespachando(true);
+      const res = await fetch("/api/rotas/despachar-carteiras", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: dataFiltro }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || "Erro ao despachar"); return; }
+      showToast(`✓ ${data.criadas} rota(s) despachada(s) para ${dataFiltro.split("-").reverse().join("/")}!`);
+      await carregarTudo(true);
+    } catch {
+      showToast("Erro de rede ao despachar");
+    } finally {
+      setDespachando(false);
+    }
+  }
 
   // ── Calendário: carrega quais dias do mês têm rotas ─────────────────────────
   async function carregarDiasComRotas(mes: string) {
@@ -2445,87 +2622,266 @@ export default function Home() {
                 {/* 3. ABA: MOTOBOYS */}
                 {adminTab === "motoboys" && (
                   <div>
+                    {/* Cabeçalho */}
                     <div className="panel-title">
                       <span>Gerenciamento de Motoboys</span>
-                      <button className="btn" onClick={() => setModalMotoboyAberto(true)}>
-                        + Adicionar motoboy
-                      </button>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button
+                          className="btn-secondary"
+                          style={{ fontSize: 12, background: "#FFF8EC", borderColor: "var(--kraft)", fontWeight: 700 }}
+                          disabled={despachando}
+                          title={`Despachar todas as carteiras para ${dataFiltro.split("-").reverse().join("/")}`}
+                          onClick={handleDespacharTodasCarteiras}
+                        >
+                          {despachando ? "Despachando..." : `🚀 Despachar Todas (${dataFiltro.split("-").reverse().slice(0,2).join("/")})`}
+                        </button>
+                        <button className="btn" onClick={() => setModalMotoboyAberto(true)}>
+                          + Adicionar motoboy
+                        </button>
+                      </div>
                     </div>
-                    <div className="table-container">
-                      <table className="responsive-table">
-                        <thead>
-                          <tr>
-                            <th>Nome</th>
-                            <th>Login</th>
-                            <th>WhatsApp</th>
-                            <th className="num">Valor por rota</th>
-                            <th>Status</th>
-                            <th style={{ textAlign: "right" }}>Ações</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {motoboys.map((moto) => (
-                            <tr key={moto.id}>
-                              <td data-label="Nome">
-                                <strong>{moto.nome}</strong>
-                              </td>
-                              <td data-label="Login" className="mono">{moto.login}</td>
-                              <td data-label="WhatsApp" style={{ color: "#3d392e" }}>{moto.whatsapp || "—"}</td>
-                              <td data-label="Taxa por rota" className="num">
-                                R$ {Number(moto.valor_rota).toFixed(2)}
-                              </td>
-                              <td data-label="Status">
-                                <span className={`stamp ${moto.ativo ? "ok" : "cancel"}`}>
-                                  {moto.ativo ? "ATIVO" : "INATIVO"}
-                                </span>
-                              </td>
-                              <td data-label="Ações" className="actions-cell" style={{ textAlign: "right" }}>
-                                <div style={{ display: "inline-flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                                  <button
-                                    type="button"
-                                    className="btn-secondary"
-                                    style={{ fontSize: 11, background: "#fff" }}
-                                    title={`Abrir simulador do App com ${moto.nome}`}
-                                    onClick={() => {
-                                      adminSimulatedMotoIdRef.current = moto.id;
-                                      setAdminSimulatedMotoId(moto.id);
-                                      setCurrentView("moto");
-                                    }}
-                                  >
-                                    📱 Ver App
-                                  </button>
-                                  <button
-                                    className="btn-secondary"
-                                    style={{ fontSize: 11 }}
-                                    onClick={() => {
-                                      setMotoboyParaSenha(moto);
-                                      setNovaSenha("");
-                                      setModalSenhaAberto(true);
-                                    }}
-                                  >
-                                    Mudar senha
-                                  </button>
-                                  <button
-                                    className="btn-danger-link"
-                                    title={moto.ativo ? "Inativar motoboy" : "Excluir definitivamente da página"}
-                                    onClick={() =>
-                                      setModalConfirmDelete({
-                                        tipo: "motoboy",
-                                        id: moto.id,
-                                        nome: moto.nome,
-                                        ativo: moto.ativo,
-                                      })
+
+                    {/* Lista de motoboys com carteira expansível */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      {motoboys.map((moto) => {
+                        const carteiraAberta = carteiraExpandida === moto.id;
+                        const itens = carteiras[moto.id] || [];
+                        return (
+                          <div key={moto.id} style={{ border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden", background: "#FFFDF9" }}>
+                            {/* Linha do motoboy */}
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 16px", flexWrap: "wrap" }}>
+                              <div style={{ flex: 1, minWidth: 140 }}>
+                                <strong style={{ fontSize: 14 }}>{moto.nome}</strong>
+                                <span className="mono" style={{ fontSize: 11, color: "#6b6558", marginLeft: 8 }}>{moto.login}</span>
+                              </div>
+                              <div style={{ fontSize: 12, color: "#6b6558" }}>
+                                Frete: <strong>R$ {Number(moto.valor_rota).toFixed(2)}</strong>
+                              </div>
+                              {moto.whatsapp && <div style={{ fontSize: 12, color: "#6b6558" }}>{moto.whatsapp}</div>}
+                              <span className={`stamp ${moto.ativo ? "ok" : "cancel"}`} style={{ fontSize: 10 }}>
+                                {moto.ativo ? "ATIVO" : "INATIVO"}
+                              </span>
+                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                <button
+                                  type="button"
+                                  className="btn-secondary"
+                                  style={{ fontSize: 11, background: carteiraAberta ? "var(--paper-alt)" : "#fff", fontWeight: 600 }}
+                                  onClick={async () => {
+                                    if (carteiraAberta) {
+                                      setCarteiraExpandida(null);
+                                    } else {
+                                      setCarteiraExpandida(moto.id);
+                                      if (!carteiras[moto.id]) await carregarCarteira(moto.id);
                                     }
-                                  >
-                                    {moto.ativo ? "Inativar" : "Excluir da página"}
-                                  </button>
+                                  }}
+                                >
+                                  {carteiraAberta ? "▲ Fechar" : `📋 Carteira (${carteiras[moto.id]?.length ?? moto.total_locais ?? 0})`}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-secondary"
+                                  style={{ fontSize: 11 }}
+                                  onClick={() => { adminSimulatedMotoIdRef.current = moto.id; setAdminSimulatedMotoId(moto.id); setCurrentView("moto"); }}
+                                >📱 App</button>
+                                <button
+                                  className="btn-secondary"
+                                  style={{ fontSize: 11 }}
+                                  onClick={() => { setMotoboyParaSenha(moto); setNovaSenha(""); setModalSenhaAberto(true); }}
+                                >Senha</button>
+                                <button
+                                  className="btn-danger-link"
+                                  style={{ fontSize: 11 }}
+                                  onClick={() => setModalConfirmDelete({ tipo: "motoboy", id: moto.id, nome: moto.nome, ativo: moto.ativo })}
+                                >{moto.ativo ? "Inativar" : "Excluir"}</button>
+                              </div>
+                            </div>
+
+                            {/* Carteira expandida */}
+                            {carteiraAberta && (
+                              <div style={{ borderTop: "1px solid var(--line)", background: "#FAF7F0", padding: "14px 16px" }}>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+                                  <span style={{ fontWeight: 700, fontSize: 13 }}>📋 Carteira — {moto.nome}</span>
+                                  <div style={{ display: "flex", gap: 8 }}>
+                                    <button
+                                      className="btn-secondary"
+                                      style={{ fontSize: 11 }}
+                                      onClick={() => { setModalAddLocalCarteira(moto.id); setAddLocalCarteiraId(""); setAddLocalCarteiraQtd(30); }}
+                                    >+ Adicionar local</button>
+                                    <button
+                                      className="btn"
+                                      style={{ fontSize: 11, background: "var(--kraft)", borderColor: "var(--kraft)" }}
+                                      disabled={despachando || itens.length === 0}
+                                      onClick={() => handleDespacharCarteira(moto.id)}
+                                    >
+                                      {despachando ? "..." : `🚀 Despachar (${dataFiltro.split("-").reverse().slice(0,2).join("/")})`}
+                                    </button>
+                                  </div>
                                 </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+
+                                {carregandoCarteira === moto.id ? (
+                                  <div style={{ color: "#6b6558", fontSize: 13 }}>Carregando...</div>
+                                ) : itens.length === 0 ? (
+                                  <div style={{ color: "#6b6558", fontSize: 13, fontStyle: "italic", padding: "10px 0" }}>
+                                    Carteira vazia. Clique em "+ Adicionar local" para começar.
+                                  </div>
+                                ) : (
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                    {itens.map((item, idx) => (
+                                      <div
+                                        key={item.id}
+                                        draggable
+                                        onDragStart={() => setDragItemIdx(idx)}
+                                        onDragOver={(e) => { e.preventDefault(); setDragOverIdx(idx); }}
+                                        onDrop={() => {
+                                          if (dragItemIdx === null || dragItemIdx === idx) return;
+                                          const nova = [...itens];
+                                          const [moved] = nova.splice(dragItemIdx, 1);
+                                          nova.splice(idx, 0, moved);
+                                          setDragItemIdx(null);
+                                          setDragOverIdx(null);
+                                          handleSalvarOrdemCarteira(moto.id, nova);
+                                        }}
+                                        onDragEnd={() => { setDragItemIdx(null); setDragOverIdx(null); }}
+                                        style={{
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: 8,
+                                          background: dragOverIdx === idx ? "#F0EBD8" : "#fff",
+                                          border: "1px solid var(--line)",
+                                          borderRadius: 6,
+                                          padding: "8px 10px",
+                                          cursor: "grab",
+                                          transition: "background 0.12s",
+                                        }}
+                                      >
+                                        <span style={{ color: "#bbb", fontSize: 13, userSelect: "none" }}>⠿</span>
+                                        <span style={{ fontSize: 12, fontWeight: 700, color: "var(--kraft)", minWidth: 20, textAlign: "center" }}>
+                                          {idx + 1}.
+                                        </span>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                          <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                            {item.local_nome}
+                                          </div>
+                                          {item.local_cliente_nome && (
+                                            <div style={{ fontSize: 11, color: "#6b6558" }}>{item.local_cliente_nome}</div>
+                                          )}
+                                        </div>
+                                        {/* Quantidade padrão editável */}
+                                        {editQtdId?.motoboyId === moto.id && editQtdId?.localId === item.local_id ? (
+                                          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                            <input
+                                              type="number"
+                                              value={editQtdVal}
+                                              min={1}
+                                              style={{ width: 56, padding: "3px 6px", border: "1px solid var(--kraft)", borderRadius: 4, fontSize: 12, fontWeight: 700 }}
+                                              onChange={(e) => setEditQtdVal(Number(e.target.value))}
+                                              onKeyDown={(e) => {
+                                                if (e.key === "Enter") handleSalvarQtdCarteira(moto.id, item.local_id, editQtdVal);
+                                                if (e.key === "Escape") setEditQtdId(null);
+                                              }}
+                                              autoFocus
+                                            />
+                                            <button className="btn" style={{ fontSize: 10, padding: "3px 8px" }} onClick={() => handleSalvarQtdCarteira(moto.id, item.local_id, editQtdVal)}>✓</button>
+                                            <button className="btn-secondary" style={{ fontSize: 10, padding: "3px 6px" }} onClick={() => setEditQtdId(null)}>✕</button>
+                                          </div>
+                                        ) : (
+                                          <button
+                                            title="Clique para editar a quantidade padrão"
+                                            style={{ background: "#F5EBE6", border: "1px solid #E8C9B8", borderRadius: 4, padding: "3px 8px", fontSize: 12, fontWeight: 700, cursor: "pointer", color: "#7a4a30" }}
+                                            onClick={() => { setEditQtdId({ motoboyId: moto.id, localId: item.local_id }); setEditQtdVal(item.qtd_padrao); }}
+                                          >
+                                            {item.qtd_padrao} un.
+                                          </button>
+                                        )}
+                                        {item.local_endereco_link && (
+                                          <a href={item.local_endereco_link} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: "var(--kraft)", textDecoration: "none" }} title="Ver no mapa">📍</a>
+                                        )}
+                                        <button
+                                          title="Mover para cima"
+                                          style={{ background: "none", border: "none", cursor: idx === 0 ? "default" : "pointer", opacity: idx === 0 ? 0.25 : 1, fontSize: 12, padding: "2px 4px" }}
+                                          disabled={idx === 0}
+                                          onClick={() => {
+                                            if (idx === 0) return;
+                                            const nova = [...itens];
+                                            [nova[idx - 1], nova[idx]] = [nova[idx], nova[idx - 1]];
+                                            handleSalvarOrdemCarteira(moto.id, nova);
+                                          }}
+                                        >▲</button>
+                                        <button
+                                          title="Mover para baixo"
+                                          style={{ background: "none", border: "none", cursor: idx === itens.length - 1 ? "default" : "pointer", opacity: idx === itens.length - 1 ? 0.25 : 1, fontSize: 12, padding: "2px 4px" }}
+                                          disabled={idx === itens.length - 1}
+                                          onClick={() => {
+                                            if (idx === itens.length - 1) return;
+                                            const nova = [...itens];
+                                            [nova[idx], nova[idx + 1]] = [nova[idx + 1], nova[idx]];
+                                            handleSalvarOrdemCarteira(moto.id, nova);
+                                          }}
+                                        >▼</button>
+                                        <button
+                                          title="Remover da carteira"
+                                          className="btn-danger-link"
+                                          style={{ fontSize: 11 }}
+                                          onClick={() => handleRemoverLocalCarteira(moto.id, item.local_id)}
+                                        >✕</button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
+
+                    {/* Modal: Adicionar local à carteira */}
+                    {modalAddLocalCarteira !== null && (
+                      <div
+                        style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}
+                        onClick={(e) => { if (e.target === e.currentTarget) setModalAddLocalCarteira(null); }}
+                      >
+                        <div style={{ background: "#FFFDF9", border: "2px solid var(--ink)", boxShadow: "6px 6px 0 rgba(0,0,0,0.15)", padding: "24px", borderRadius: 8, minWidth: 320, maxWidth: 440, width: "90%" }}>
+                          <h3 style={{ margin: "0 0 16px", fontSize: 16 }}>+ Adicionar local à carteira</h3>
+                          <div style={{ marginBottom: 12 }}>
+                            <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 4 }}>Local</label>
+                            <select
+                              value={addLocalCarteiraId}
+                              onChange={(e) => setAddLocalCarteiraId(Number(e.target.value) || "")}
+                              style={{ width: "100%", padding: "8px 10px", border: "1px solid var(--line)", borderRadius: 6, fontSize: 13 }}
+                            >
+                              <option value="">Selecione o local...</option>
+                              {locais
+                                .filter((l) => l.ativo)
+                                .filter((l) => !carteiras[modalAddLocalCarteira]?.some((ml) => ml.local_id === l.id))
+                                .map((l) => (
+                                  <option key={l.id} value={l.id}>{l.nome}{l.cliente_nome ? ` — ${l.cliente_nome}` : ""}</option>
+                                ))}
+                            </select>
+                          </div>
+                          <div style={{ marginBottom: 16 }}>
+                            <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 4 }}>Quantidade padrão</label>
+                            <input
+                              type="number"
+                              min={1}
+                              value={addLocalCarteiraQtd}
+                              onChange={(e) => setAddLocalCarteiraQtd(Number(e.target.value))}
+                              style={{ width: "100%", padding: "8px 10px", border: "1px solid var(--line)", borderRadius: 6, fontSize: 13, boxSizing: "border-box" }}
+                            />
+                          </div>
+                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                            <button className="btn-secondary" onClick={() => setModalAddLocalCarteira(null)}>Cancelar</button>
+                            <button
+                              className="btn"
+                              disabled={adicionandoLocalCarteira || !addLocalCarteiraId}
+                              onClick={() => handleAddLocalCarteira(modalAddLocalCarteira)}
+                            >
+                              {adicionandoLocalCarteira ? "Adicionando..." : "Adicionar"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 

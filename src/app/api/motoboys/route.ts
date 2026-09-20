@@ -4,10 +4,14 @@ import { sql } from "@/lib/db";
 
 export async function GET() {
   const motoboys = await sql`
-    select id, nome, login, whatsapp, valor_rota, ativo, criado_em
-    from motoboys
-    where coalesce(excluido, false) = false
-    order by nome asc
+    select 
+      m.id, m.nome, m.login, m.whatsapp, m.valor_rota, m.ativo, m.criado_em,
+      count(distinct ml.local_id)::int as total_locais
+    from motoboys m
+    left join motoboy_locais ml on ml.motoboy_id = m.id and ml.ativo = true
+    where coalesce(m.excluido, false) = false
+    group by m.id, m.nome, m.login, m.whatsapp, m.valor_rota, m.ativo, m.criado_em
+    order by m.nome asc
   `;
   return NextResponse.json(motoboys);
 }
