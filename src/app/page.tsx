@@ -2760,15 +2760,6 @@ export default function Home() {
                     <div className="panel-title">
                       <span>Gerenciamento de Motoboys</span>
                       <div style={{ display: "flex", gap: 8 }}>
-                        <button
-                          className="btn-secondary"
-                          style={{ fontSize: 12, background: "#FFF8EC", borderColor: "var(--kraft)", fontWeight: 700 }}
-                          disabled={despachando}
-                          title={`Despachar todas as carteiras para ${dataFiltro.split("-").reverse().join("/")}`}
-                          onClick={handleDespacharTodasCarteiras}
-                        >
-                          {despachando ? "Despachando..." : `🚀 Despachar Todas (${dataFiltro.split("-").reverse().slice(0,2).join("/")})`}
-                        </button>
                         <button className="btn" onClick={() => setModalMotoboyAberto(true)}>
                           + Adicionar motoboy
                         </button>

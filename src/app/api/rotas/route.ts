@@ -15,32 +15,6 @@ export async function GET(req: Request) {
         ? Number(motoboyIdParam)
         : null;
 
-    // Se uma data específica for consultada e ainda não houver rotas geradas para ela,
-    // gera automaticamente a partir das carteiras ativas ("sem a dona precisar botar")!
-    if (de && de === ate) {
-      const [contagem] = await sql`
-        select count(*)::int as total from rotas where data = ${de}::date
-      `;
-      if (contagem && Number(contagem.total) === 0) {
-        await sql`
-          insert into rotas (local_id, motoboy_id, quantidade, data, receita, custo, status)
-          select 
-            ml.local_id,
-            ml.motoboy_id,
-            0,
-            ${de}::date,
-            0.00,
-            m.valor_rota,
-            'pendente'
-          from motoboy_locais ml
-          join locais l on l.id = ml.local_id and l.ativo = true and coalesce(l.excluido, false) = false
-          join motoboys m on m.id = ml.motoboy_id and m.ativo = true and coalesce(m.excluido, false) = false
-          where ml.ativo = true
-          order by ml.motoboy_id, ml.ordem asc
-        `;
-      }
-    }
-
     const rotas = await sql`
       select
         r.id, r.data, r.quantidade, r.status, r.receita, r.custo,
@@ -95,11 +69,39 @@ export async function POST(req: Request) {
         ? data.trim()
         : new Intl.DateTimeFormat("fr-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 
-    const [rota] = await sql`
-      insert into rotas (local_id, motoboy_id, quantidade, data, receita, custo)
-      values (${local_id}, ${motoboy_id}, ${quantidade}, ${dataFinal}, ${receita}, ${custo})
-      returning *
+    // Se já existir rota para o mesmo local e motoboy nessa data, alimenta a existente (evita duplicatas)
+    const [rotaExistente] = await sql`
+      select id, quantidade, status from rotas
+      where local_id = ${local_id}
+        and motoboy_id = ${motoboy_id}
+        and data = ${dataFinal}::date
+      limit 1
     `;
+
+    let rota;
+    if (rotaExistente) {
+      // Se a rota existente tinha quantidade 0, atualiza para o novo valor.
+      // Se já tinha quantidade > 0, soma o novo valor para acrescentar.
+      const novaQtd = Number(rotaExistente.quantidade) > 0
+        ? Number(rotaExistente.quantidade) + Number(quantidade)
+        : Number(quantidade);
+      const novaReceita = Number(local.valor_unidade) * novaQtd;
+
+      [rota] = await sql`
+        update rotas set
+          quantidade = ${novaQtd},
+          receita = ${novaReceita},
+          status = 'pendente'
+        where id = ${rotaExistente.id}
+        returning *
+      `;
+    } else {
+      [rota] = await sql`
+        insert into rotas (local_id, motoboy_id, quantidade, data, receita, custo)
+        values (${local_id}, ${motoboy_id}, ${quantidade}, ${dataFinal}, ${receita}, ${custo})
+        returning *
+      `;
+    }
 
     // Se o local ainda não estiver na carteira fixa desse motoboy, adiciona ao final
     // ("no caso se a dona bota algo novo na rota, aparece em último pra ele organizar a ordem")

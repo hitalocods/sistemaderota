@@ -37,29 +37,34 @@ export async function POST(req: Request) {
             and data = ${data}::date
         `;
 
-        if (existente) {
-          await sql`
-            update rotas set
-              quantidade = ${qtd},
-              receita = (select coalesce(valor_unidade, 0) * ${qtd} from locais where id = ${localId})
-            where id = ${existente.id}
-          `;
+        if (qtd > 0) {
+          if (existente) {
+            await sql`
+              update rotas set
+                quantidade = ${qtd},
+                receita = (select coalesce(valor_unidade, 0) * ${qtd} from locais where id = ${localId}),
+                status = 'pendente'
+              where id = ${existente.id}
+            `;
+          } else {
+            await sql`
+              insert into rotas (local_id, motoboy_id, quantidade, data, receita, custo, status)
+              select
+                ${localId},
+                ${motoId},
+                ${qtd},
+                ${data}::date,
+                (l.valor_unidade * ${qtd}),
+                m.valor_rota,
+                'pendente'
+              from locais l, motoboys m
+              where l.id = ${localId} and m.id = ${motoId}
+            `;
+          }
           processadas++;
-        } else {
-          await sql`
-            insert into rotas (local_id, motoboy_id, quantidade, data, receita, custo, status)
-            select
-              ${localId},
-              ${motoId},
-              ${qtd},
-              ${data}::date,
-              (l.valor_unidade * ${qtd}),
-              m.valor_rota,
-              'pendente'
-            from locais l, motoboys m
-            where l.id = ${localId} and m.id = ${motoId}
-          `;
-          processadas++;
+        } else if (existente) {
+          // Se a quantidade foi informada como 0 e a rota existia, remove para não poluir
+          await sql`delete from rotas where id = ${existente.id}`;
         }
       }
 
