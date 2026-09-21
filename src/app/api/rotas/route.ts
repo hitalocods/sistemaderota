@@ -15,6 +15,29 @@ export async function GET(req: Request) {
         ? Number(motoboyIdParam)
         : null;
 
+    // Garante que os locais da carteira dos motoboys existam para o dia com quantidade 0 (aguardando despacho)
+    // Se a rota já existir para hoje, não mexe (idempotente)
+    if (de && de === ate) {
+      await sql`
+        insert into rotas (local_id, motoboy_id, quantidade, data, receita, custo, status)
+        select 
+          ml.local_id,
+          ml.motoboy_id,
+          0,
+          ${de}::date,
+          0.00,
+          m.valor_rota,
+          'pendente'
+        from motoboy_locais ml
+        join locais l on l.id = ml.local_id and l.ativo = true and coalesce(l.excluido, false) = false
+        join motoboys m on m.id = ml.motoboy_id and m.ativo = true and coalesce(m.excluido, false) = false
+        left join rotas r on r.local_id = ml.local_id and r.motoboy_id = ml.motoboy_id and r.data = ${de}::date
+        where ml.ativo = true
+          and r.id is null
+        order by ml.motoboy_id, ml.ordem asc
+      `;
+    }
+
     const rotas = await sql`
       select
         r.id, r.data, r.quantidade, r.status, r.receita, r.custo,

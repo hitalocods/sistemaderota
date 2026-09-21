@@ -165,6 +165,7 @@ export default function Home() {
   const [motoboys, setMotoboys] = useState<Motoboy[]>([]);
   const [rotas, setRotas] = useState<Rota[]>([]);
   const [buscaRotasDespachadas, setBuscaRotasDespachadas] = useState("");
+  const [filtroTabelaQtd, setFiltroTabelaQtd] = useState<"todas" | "com_quentinhas" | "zeradas">("todas");
   const [buscaRotasMotoboy, setBuscaRotasMotoboy] = useState("");
   const [ordemRotasMotoIds, setOrdemRotasMotoIds] = useState<number[]>([]);
   const [relatorio, setRelatorio] = useState<Relatorio | null>(null);
@@ -1554,9 +1555,16 @@ export default function Home() {
 
   // Filtro de pesquisa com lupinha na tabela de rotas despachadas
   const rotasDespachadasFiltradas = useMemo(() => {
-    if (!buscaRotasDespachadas.trim()) return rotas;
+    let lista = rotas;
+    if (filtroTabelaQtd === "com_quentinhas") {
+      lista = lista.filter((r) => r.quantidade > 0);
+    } else if (filtroTabelaQtd === "zeradas") {
+      lista = lista.filter((r) => r.quantidade === 0);
+    }
+
+    if (!buscaRotasDespachadas.trim()) return lista;
     const termo = buscaRotasDespachadas.toLowerCase().trim();
-    return rotas.filter((r) => {
+    return lista.filter((r) => {
       const local = (r.local_nome || "").toLowerCase();
       const cliente = (r.local_cliente_nome || "").toLowerCase();
       const moto = (r.motoboy_nome || "").toLowerCase();
@@ -1572,7 +1580,7 @@ export default function Home() {
         qtd.includes(termo)
       );
     });
-  }, [rotas, buscaRotasDespachadas]);
+  }, [rotas, buscaRotasDespachadas, filtroTabelaQtd]);
 
   // Lista de solicitações de alteração pendentes de aprovação pela Dona
   const ajustesPendentes = useMemo(() => {
@@ -2283,6 +2291,55 @@ export default function Home() {
                             title="Atualizar lista"
                           >
                             Atualizar
+                          </button>
+                        </div>
+
+                        {/* Filtros Rápidos de Exibição */}
+                        <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            style={{
+                              fontSize: 11.5,
+                              padding: "4px 10px",
+                              fontWeight: filtroTabelaQtd === "todas" ? 700 : 500,
+                              background: filtroTabelaQtd === "todas" ? "var(--kraft)" : "#fff",
+                              color: filtroTabelaQtd === "todas" ? "#fff" : "var(--ink)",
+                              borderColor: "var(--kraft)",
+                            }}
+                            onClick={() => setFiltroTabelaQtd("todas")}
+                          >
+                            📋 Todas as Paradas ({rotas.length})
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            style={{
+                              fontSize: 11.5,
+                              padding: "4px 10px",
+                              fontWeight: filtroTabelaQtd === "com_quentinhas" ? 700 : 500,
+                              background: filtroTabelaQtd === "com_quentinhas" ? "var(--route-green)" : "#fff",
+                              color: filtroTabelaQtd === "com_quentinhas" ? "#fff" : "var(--ink)",
+                              borderColor: "var(--route-green)",
+                            }}
+                            onClick={() => setFiltroTabelaQtd("com_quentinhas")}
+                          >
+                            ✓ Com Quentinhas ({rotas.filter((r) => r.quantidade > 0).length})
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            style={{
+                              fontSize: 11.5,
+                              padding: "4px 10px",
+                              fontWeight: filtroTabelaQtd === "zeradas" ? 700 : 500,
+                              background: filtroTabelaQtd === "zeradas" ? "#F59E0B" : "#fff",
+                              color: filtroTabelaQtd === "zeradas" ? "#fff" : "var(--ink)",
+                              borderColor: "#F59E0B",
+                            }}
+                            onClick={() => setFiltroTabelaQtd("zeradas")}
+                          >
+                            ⏳ Aguardando ({rotas.filter((r) => r.quantidade === 0).length})
                           </button>
                         </div>
 
