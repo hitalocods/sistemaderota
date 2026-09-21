@@ -250,8 +250,8 @@ export default function Home() {
   // Card de rota expandido no App do Motoboy
   const [rotaCardExpandidaId, setRotaCardExpandidaId] = useState<number | null>(null);
 
-  // Sub-aba do Motoboy: 'resumo' (Resumo de Carga / Placas) ou 'roteiro' (Roteiro de Entregas)
-  const [motoSubTab, setMotoSubTab] = useState<"resumo" | "roteiro">("resumo");
+  // Sub-aba do Motoboy: 'resumo' (Carga / A Entregar) ou 'confirmadas' (Entregas Confirmadas)
+  const [motoSubTab, setMotoSubTab] = useState<"resumo" | "confirmadas">("resumo");
   // Controle de ajuste de quantidade na conferência de placas
   const [ajustandoRotaId, setAjustandoRotaId] = useState<number | null>(null);
   const [valorAjusteTemp, setValorAjusteTemp] = useState<number>(0);
@@ -1160,11 +1160,20 @@ export default function Home() {
     return resultado;
   }, [rotasMotoboyAtivo, ordemRotasMotoIds]);
 
-  // Lista de rotas do motoboy filtradas pela pesquisa rápida com a lupinha
-  const rotasMotoboyExibidas = useMemo(() => {
-    if (!buscaRotasMotoboy.trim()) return rotasMotoboyOrdenadas;
+  // Separação entre paradas pendentes e entregas já confirmadas
+  const rotasMotoboyPendentes = useMemo(() => {
+    return rotasMotoboyOrdenadas.filter((r) => r.status !== "entregue");
+  }, [rotasMotoboyOrdenadas]);
+
+  const rotasMotoboyConfirmadas = useMemo(() => {
+    return rotasMotoboyOrdenadas.filter((r) => r.status === "entregue");
+  }, [rotasMotoboyOrdenadas]);
+
+  // Função auxiliar para busca rápida com a lupinha
+  const filtrarRotasMoto = (lista: Rota[]) => {
+    if (!buscaRotasMotoboy.trim()) return lista;
     const termo = buscaRotasMotoboy.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-    return rotasMotoboyOrdenadas.filter((r) => {
+    return lista.filter((r) => {
       const localNorm = (r.local_nome || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       const clienteNorm = (r.local_cliente_nome || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       const endNorm = (r.local_endereco || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -1180,19 +1189,32 @@ export default function Home() {
         qtdNorm.includes(termo)
       );
     });
-  }, [rotasMotoboyOrdenadas, buscaRotasMotoboy]);
+  };
+
+  const rotasPendentesExibidas = useMemo(() => {
+    return filtrarRotasMoto(rotasMotoboyPendentes);
+  }, [rotasMotoboyPendentes, buscaRotasMotoboy]);
+
+  const rotasConfirmadasExibidas = useMemo(() => {
+    return filtrarRotasMoto(rotasMotoboyConfirmadas);
+  }, [rotasMotoboyConfirmadas, buscaRotasMotoboy]);
 
   const moverOrdemRota = async (rotaId: number, direcao: "cima" | "baixo") => {
     const listaAtual = [...rotasMotoboyOrdenadas];
-    const index = listaAtual.findIndex((r) => r.id === rotaId);
-    if (index === -1) return;
+    const listaRef = rotasMotoboyPendentes;
+    const idxRef = listaRef.findIndex((r) => r.id === rotaId);
+    if (idxRef === -1) return;
+    const vizinhoRefIdx = direcao === "cima" ? idxRef - 1 : idxRef + 1;
+    if (vizinhoRefIdx < 0 || vizinhoRefIdx >= listaRef.length) return;
+    const vizinhoId = listaRef[vizinhoRefIdx].id;
 
-    const novoIndex = direcao === "cima" ? index - 1 : index + 1;
-    if (novoIndex < 0 || novoIndex >= listaAtual.length) return;
+    const index = listaAtual.findIndex((r) => r.id === rotaId);
+    const vizinhoIndex = listaAtual.findIndex((r) => r.id === vizinhoId);
+    if (index === -1 || vizinhoIndex === -1) return;
 
     const temp = listaAtual[index];
-    listaAtual[index] = listaAtual[novoIndex];
-    listaAtual[novoIndex] = temp;
+    listaAtual[index] = listaAtual[vizinhoIndex];
+    listaAtual[vizinhoIndex] = temp;
 
     const novosIds = listaAtual.map((r) => r.id);
     setOrdemRotasMotoIds(novosIds);
@@ -1200,7 +1222,6 @@ export default function Home() {
     try {
       if (activeMotoId) {
         localStorage.setItem(`ordem_rotas_${activeMotoId}_${dataFiltro}`, JSON.stringify(novosIds));
-        // Persistir ordem fixa permanentemente na carteira do banco de dados!
         const payloadOrdem = listaAtual.map((r, i) => ({
           local_id: r.local_id,
           ordem: i + 1,
@@ -1217,13 +1238,17 @@ export default function Home() {
   };
 
   const reordenarRotaParaPosicao = async (rotaId: number, novaPosicao: number) => {
+    if (novaPosicao < 0 || novaPosicao >= rotasMotoboyPendentes.length) return;
+    const targetRota = rotasMotoboyPendentes[novaPosicao];
+    if (!targetRota || targetRota.id === rotaId) return;
+
     const listaAtual = [...rotasMotoboyOrdenadas];
     const index = listaAtual.findIndex((r) => r.id === rotaId);
     if (index === -1) return;
-    if (novaPosicao < 0 || novaPosicao >= listaAtual.length) return;
 
     const [item] = listaAtual.splice(index, 1);
-    listaAtual.splice(novaPosicao, 0, item);
+    const indexDestino = listaAtual.findIndex((r) => r.id === targetRota.id);
+    listaAtual.splice(indexDestino, 0, item);
 
     const novosIds = listaAtual.map((r) => r.id);
     setOrdemRotasMotoIds(novosIds);
@@ -1231,7 +1256,6 @@ export default function Home() {
     try {
       if (activeMotoId) {
         localStorage.setItem(`ordem_rotas_${activeMotoId}_${dataFiltro}`, JSON.stringify(novosIds));
-        // Persistir ordem fixa permanentemente na carteira do banco de dados!
         const payloadOrdem = listaAtual.map((r, i) => ({
           local_id: r.local_id,
           ordem: i + 1,
@@ -3288,25 +3312,25 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Sub-Abas do Entregador: Resumo de Carga (Placas) vs Roteiro de Entregas */}
+                {/* Sub-Abas do Entregador: Carga & A Entregar vs Entregas Confirmadas */}
                 <div className="m-subtabs-wrap">
                   <button
                     type="button"
                     className={`m-subtab-btn ${motoSubTab === "resumo" ? "active" : ""}`}
                     onClick={() => setMotoSubTab("resumo")}
                   >
-                    <span>📋 Resumo de Carga (Placas)</span>
+                    <span>📋 A Entregar ({rotasMotoboyPendentes.length})</span>
                   </button>
                   <button
                     type="button"
-                    className={`m-subtab-btn ${motoSubTab === "roteiro" ? "active" : ""}`}
-                    onClick={() => setMotoSubTab("roteiro")}
+                    className={`m-subtab-btn ${motoSubTab === "confirmadas" ? "active" : ""}`}
+                    onClick={() => setMotoSubTab("confirmadas")}
                   >
-                    <span>🛵 Roteiro de Entregas</span>
+                    <span>✓ Confirmadas ({rotasMotoboyConfirmadas.length})</span>
                   </button>
                 </div>
 
-                {/* 1. ABA: RESUMO DE CARGA EM LISTA (PLACAS) */}
+                {/* 1. ABA: ENTREGAS A REALIZAR */}
                 {motoSubTab === "resumo" && (
                   <div className="stop-list">
                     <div
@@ -3321,10 +3345,10 @@ export default function Home() {
                         lineHeight: 1.4,
                       }}
                     >
-                      🍱 <strong>Conferência de Placas:</strong> Veja a lista de locais e a quantidade de quentinhas a levar. Ao conferir e colocar as placas na moto, toque no botão <strong>OK</strong> para confirmar que pegou a carga.
+                      🛵 <strong>Entregas a Realizar:</strong> Ao entregar no cliente, toque em <strong>✓ Confirmar Entrega</strong> para transferir a rota para a aba de confirmadas.
                     </div>
 
-                    {rotasMotoboyOrdenadas.length > 0 && (
+                    {rotasMotoboyPendentes.length > 0 && (
                       <div style={{ position: "relative", marginBottom: 10 }}>
                         <span
                           style={{
@@ -3342,7 +3366,7 @@ export default function Home() {
                         </span>
                         <input
                           type="text"
-                          placeholder="Buscar parada por local, cliente ou endereço..."
+                          placeholder="Buscar parada pendente por local, cliente ou endereço..."
                           value={buscaRotasMotoboy}
                           onChange={(e) => setBuscaRotasMotoboy(e.target.value)}
                           style={{
@@ -3380,7 +3404,7 @@ export default function Home() {
                       </div>
                     )}
 
-                    {rotasMotoboyOrdenadas.length > 1 && (
+                    {rotasMotoboyPendentes.length > 1 && (
                       <div
                         style={{
                           display: "flex",
@@ -3399,7 +3423,7 @@ export default function Home() {
                           ⇅ <strong>Organizar ordem:</strong> use ▲ / ▼ ou selecione a posição.
                           {buscaRotasMotoboy.trim() && (
                             <span style={{ marginLeft: 6, fontSize: 11, color: "#8A5300", fontWeight: 600 }}>
-                              ({rotasMotoboyExibidas.length} de {rotasMotoboyOrdenadas.length})
+                              ({rotasPendentesExibidas.length} de {rotasMotoboyPendentes.length})
                             </span>
                           )}
                         </span>
@@ -3424,11 +3448,30 @@ export default function Home() {
                       </div>
                     )}
 
-                    {rotasMotoboyOrdenadas.length === 0 ? (
-                      <div style={{ textAlign: "center", padding: "40px 16px", color: "#8a8372" }}>
-                        Nenhum despacho atribuído a você hoje.
-                      </div>
-                    ) : rotasMotoboyExibidas.length === 0 ? (
+                    {rotasMotoboyPendentes.length === 0 ? (
+                      rotasMotoboyConfirmadas.length > 0 ? (
+                        <div
+                          style={{
+                            textAlign: "center",
+                            padding: "36px 16px",
+                            background: "#F0FDF4",
+                            border: "1px dashed #86EFAC",
+                            borderRadius: 8,
+                            color: "#166534",
+                          }}
+                        >
+                          <div style={{ fontSize: 24, marginBottom: 8 }}>🎉</div>
+                          <strong style={{ fontSize: 14 }}>Todas as entregas de hoje foram concluídas!</strong>
+                          <div style={{ fontSize: 12.5, marginTop: 6, color: "#15803D" }}>
+                            Você pode ver o histórico completo na aba <strong>✓ Confirmadas ({rotasMotoboyConfirmadas.length})</strong>.
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ textAlign: "center", padding: "40px 16px", color: "#8a8372" }}>
+                          Nenhuma rota pendente para você no momento.
+                        </div>
+                      )
+                    ) : rotasPendentesExibidas.length === 0 ? (
                       <div
                         style={{
                           textAlign: "center",
@@ -3461,29 +3504,28 @@ export default function Home() {
                         </button>
                       </div>
                     ) : (
-                      rotasMotoboyExibidas.map((rota) => {
-                        const isConferido = !!rota.carga_conferida;
-                        const horaConferida = rota.carga_conferida_em
-                          ? new Date(rota.carga_conferida_em).toLocaleTimeString("pt-BR", {
+                      rotasPendentesExibidas.map((rota) => {
+                        const isExpandido = rotaCardExpandidaId === rota.id;
+
+                        const horaPassada = rota.criado_em
+                          ? new Date(rota.criado_em).toLocaleTimeString("pt-BR", {
                               hour: "2-digit",
                               minute: "2-digit",
                             })
-                          : null;
+                          : "—";
 
-                        const indexReal = rotasMotoboyOrdenadas.findIndex((r) => r.id === rota.id);
-                        const numeroParada = indexReal !== -1 ? indexReal + 1 : 1;
-                        const isPrimeira = indexReal === 0;
-                        const isUltima = indexReal === rotasMotoboyOrdenadas.length - 1;
+                        const indexPendente = rotasMotoboyPendentes.findIndex((r) => r.id === rota.id);
+                        const numeroParada = indexPendente !== -1 ? indexPendente + 1 : 1;
+                        const isPrimeira = indexPendente === 0;
+                        const isUltima = indexPendente === rotasMotoboyPendentes.length - 1;
 
                         return (
                           <div
                             key={rota.id}
-                            className="carga-card"
-                            style={{
-                              borderLeft: isConferido ? "4px solid #22C55E" : "4px solid var(--line)",
-                            }}
+                            className={`stop ${isExpandido ? "expanded" : ""}`}
+                            onClick={() => setRotaCardExpandidaId(isExpandido ? null : rota.id)}
                           >
-                            <div className="carga-header">
+                            <div className="stop-top">
                               <div>
                                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5, flexWrap: "wrap" }}>
                                   <span
@@ -3500,382 +3542,7 @@ export default function Home() {
                                     {numeroParada}ª Parada
                                   </span>
 
-                                  {rotasMotoboyOrdenadas.length > 1 && (
-                                    <div style={{ display: "inline-flex", gap: 3, alignItems: "center" }}>
-                                      <button
-                                        type="button"
-                                        disabled={isPrimeira}
-                                        onClick={() => moverOrdemRota(rota.id, "cima")}
-                                        style={{
-                                          padding: "2px 7px",
-                                          fontSize: 11,
-                                          fontWeight: 700,
-                                          background: isPrimeira ? "#f0ece1" : "#fff",
-                                          border: "1px solid var(--line)",
-                                          borderRadius: 4,
-                                          cursor: isPrimeira ? "not-allowed" : "pointer",
-                                          color: isPrimeira ? "#b5af9f" : "var(--ink)",
-                                          lineHeight: 1.2,
-                                        }}
-                                        title="Mover para cima (entregar antes)"
-                                      >
-                                        ▲
-                                      </button>
-                                      <button
-                                        type="button"
-                                        disabled={isUltima}
-                                        onClick={() => moverOrdemRota(rota.id, "baixo")}
-                                        style={{
-                                          padding: "2px 7px",
-                                          fontSize: 11,
-                                          fontWeight: 700,
-                                          background: isUltima ? "#f0ece1" : "#fff",
-                                          border: "1px solid var(--line)",
-                                          borderRadius: 4,
-                                          cursor: isUltima ? "not-allowed" : "pointer",
-                                          color: isUltima ? "#b5af9f" : "var(--ink)",
-                                          lineHeight: 1.2,
-                                        }}
-                                        title="Mover para baixo (entregar depois)"
-                                      >
-                                        ▼
-                                      </button>
-                                      <select
-                                        value={indexReal}
-                                        onChange={(e) => reordenarRotaParaPosicao(rota.id, Number(e.target.value))}
-                                        style={{
-                                          padding: "2px 5px",
-                                          fontSize: 11,
-                                          border: "1px solid var(--line)",
-                                          borderRadius: 4,
-                                          background: "#fff",
-                                          fontWeight: 600,
-                                          cursor: "pointer",
-                                        }}
-                                        title="Escolher número da parada"
-                                      >
-                                        {rotasMotoboyOrdenadas.map((_, idx) => (
-                                          <option key={idx} value={idx}>
-                                            {idx + 1}ª
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </div>
-                                  )}
-                                </div>
-
-                                <div className="carga-local-title">{rota.local_nome}</div>
-                                {rota.local_cliente_nome && (
-                                  <div style={{ fontSize: 12, color: "#6b6558", marginTop: 2 }}>
-                                    👤 {rota.local_cliente_nome}
-                                  </div>
-                                )}
-                              </div>
-                              <span className={`stamp ${rota.status === "entregue" ? "ok" : "pend"}`}>
-                                {rota.status}
-                              </span>
-                            </div>
-
-                            <div className="carga-qty-display" style={rota.quantidade === 0 ? { background: "#FEF3C7", borderColor: "#FDE68A" } : undefined}>
-                              <div>
-                                <div style={{ fontSize: 11, color: rota.quantidade === 0 ? "#92400E" : "#7a7364", textTransform: "uppercase", fontWeight: 700 }}>
-                                  {rota.quantidade === 0 ? "Status da Cozinha" : "Quantidade despachada"}
-                                </div>
-                                <div className="carga-qty-num" style={rota.quantidade === 0 ? { color: "#B45309", fontSize: 15 } : undefined}>
-                                  {rota.quantidade === 0 ? (
-                                    <span>⏳ Aguardando quentinhas da cozinha</span>
-                                  ) : (
-                                    <>
-                                      {rota.quantidade} <span style={{ fontSize: 14, fontWeight: 500, color: "#7a7364" }}>quentinhas</span>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                              {isConferido && (
-                                <span
-                                  style={{
-                                    background: "#DCFCE7",
-                                    color: "#166534",
-                                    fontSize: 11.5,
-                                    fontWeight: 700,
-                                    padding: "3px 8px",
-                                    borderRadius: 4,
-                                    border: "1px solid #86EFAC",
-                                  }}
-                                >
-                                  ✓ OK
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Botão de Confirmação OK */}
-                            <div style={{ marginTop: 10 }}>
-                              {rota.quantidade === 0 ? (
-                                <div
-                                  style={{
-                                    padding: "10px 12px",
-                                    background: "#FFFBEB",
-                                    border: "1px dashed #FCD34D",
-                                    borderRadius: 6,
-                                    textAlign: "center",
-                                    fontSize: 12.5,
-                                    color: "#92400E",
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  ⏳ Aguardando a Dona Rê despachar a quantidade desta parada
-                                </div>
-                              ) : !isConferido ? (
-                                <button
-                                  type="button"
-                                  className="btn"
-                                  style={{
-                                    width: "100%",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    gap: 6,
-                                    padding: "11px 14px",
-                                    background: "var(--route-green)",
-                                    color: "#fff",
-                                    fontWeight: 700,
-                                    fontSize: 13.5,
-                                    borderRadius: 6,
-                                    border: "none",
-                                    cursor: "pointer",
-                                    boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
-                                  }}
-                                  onClick={() => handleToggleConferirCarga(rota.id, true)}
-                                >
-                                  <span>✓ OK — CONFIRMAR CARGA ({rota.quantidade} UN.)</span>
-                                </button>
-                              ) : (
-                                <div
-                                  style={{
-                                    background: "#F0FDF4",
-                                    border: "1px solid #BBF7D0",
-                                    borderRadius: 6,
-                                    padding: "9px 12px",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                  }}
-                                >
-                                  <span style={{ fontSize: 12.5, fontWeight: 700, color: "#166534" }}>
-                                    ✓ Carga conferida! {horaConferida ? `(${horaConferida})` : ""}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    style={{
-                                      background: "none",
-                                      border: "none",
-                                      color: "#15803D",
-                                      fontSize: 11.5,
-                                      textDecoration: "underline",
-                                      cursor: "pointer",
-                                      fontWeight: 600,
-                                    }}
-                                    onClick={() => handleToggleConferirCarga(rota.id, false)}
-                                  >
-                                    Desfazer
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
-
-                {/* 2. ABA: ROTEIRO DE ENTREGAS DETALHADO */}
-                {motoSubTab === "roteiro" && (
-                  <div className="stop-list">
-                    {rotasMotoboyOrdenadas.length > 0 && (
-                      <div style={{ position: "relative", marginBottom: 10 }}>
-                        <span
-                          style={{
-                            position: "absolute",
-                            left: 10,
-                            top: "50%",
-                            transform: "translateY(-50%)",
-                            color: "#8a8372",
-                            fontSize: 14,
-                            pointerEvents: "none",
-                            lineHeight: 1,
-                          }}
-                        >
-                          🔍
-                        </span>
-                        <input
-                          type="text"
-                          placeholder="Buscar parada por local, cliente ou endereço..."
-                          value={buscaRotasMotoboy}
-                          onChange={(e) => setBuscaRotasMotoboy(e.target.value)}
-                          style={{
-                            width: "100%",
-                            padding: "8px 30px 8px 32px",
-                            fontSize: 13,
-                            border: "1px solid var(--line)",
-                            borderRadius: 6,
-                            background: "#fff",
-                            boxSizing: "border-box",
-                            outline: "none",
-                          }}
-                        />
-                        {buscaRotasMotoboy && (
-                          <button
-                            type="button"
-                            onClick={() => setBuscaRotasMotoboy("")}
-                            style={{
-                              position: "absolute",
-                              right: 8,
-                              top: "50%",
-                              transform: "translateY(-50%)",
-                              background: "none",
-                              border: "none",
-                              color: "#8a8372",
-                              cursor: "pointer",
-                              fontSize: 14,
-                              padding: "2px 6px",
-                            }}
-                            title="Limpar pesquisa"
-                          >
-                            ✕
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    {rotasMotoboyOrdenadas.length > 1 && (
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "7px 10px",
-                          background: "#FFFBF2",
-                          border: "1px dashed #E2D9C8",
-                          borderRadius: 6,
-                          marginBottom: 12,
-                          fontSize: 12,
-                          color: "#6b6558",
-                        }}
-                      >
-                        <span>
-                          ⇅ <strong>Organizar roteiro:</strong> use ▲ / ▼ ou selecione a ordem.
-                          {buscaRotasMotoboy.trim() && (
-                            <span style={{ marginLeft: 6, fontSize: 11, color: "#8A5300", fontWeight: 600 }}>
-                              ({rotasMotoboyExibidas.length} de {rotasMotoboyOrdenadas.length})
-                            </span>
-                          )}
-                        </span>
-                        {ordemRotasMotoIds.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={resetarOrdemRotas}
-                            style={{
-                              background: "none",
-                              border: "none",
-                              color: "#8a8372",
-                              fontSize: 11,
-                              cursor: "pointer",
-                              textDecoration: "underline",
-                              fontWeight: 600,
-                            }}
-                            title="Restaurar ordem original"
-                          >
-                            Restaurar
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    {rotasMotoboyOrdenadas.length === 0 ? (
-                      <div style={{ textAlign: "center", padding: "40px 16px", color: "#8a8372" }}>
-                        Nenhuma rota pendente para você no momento.
-                      </div>
-                    ) : rotasMotoboyExibidas.length === 0 ? (
-                      <div
-                        style={{
-                          textAlign: "center",
-                          padding: "28px 16px",
-                          background: "#FAF7EE",
-                          border: "1px dashed var(--line)",
-                          borderRadius: 8,
-                          color: "#6b6558",
-                          fontSize: 13,
-                          marginBottom: 12,
-                        }}
-                      >
-                        <div>Nenhuma parada encontrada para &quot;<strong>{buscaRotasMotoboy}</strong>&quot;.</div>
-                        <button
-                          type="button"
-                          onClick={() => setBuscaRotasMotoboy("")}
-                          style={{
-                            marginTop: 8,
-                            padding: "5px 12px",
-                            fontSize: 12,
-                            fontWeight: 600,
-                            background: "#fff",
-                            border: "1px solid var(--line)",
-                            borderRadius: 6,
-                            cursor: "pointer",
-                            color: "var(--ink)",
-                          }}
-                        >
-                          Limpar pesquisa
-                        </button>
-                      </div>
-                    ) : (
-                      rotasMotoboyExibidas.map((rota) => {
-                        const isEntregue = rota.status === "entregue";
-                        const isExpandido = rotaCardExpandidaId === rota.id;
-
-                        const horaPassada = rota.criado_em
-                          ? new Date(rota.criado_em).toLocaleTimeString("pt-BR", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          : "—";
-
-                        const horaEntregue = rota.entregue_em
-                          ? new Date(rota.entregue_em).toLocaleTimeString("pt-BR", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          : null;
-
-                        const indexReal = rotasMotoboyOrdenadas.findIndex((r) => r.id === rota.id);
-                        const numeroParada = indexReal !== -1 ? indexReal + 1 : 1;
-                        const isPrimeira = indexReal === 0;
-                        const isUltima = indexReal === rotasMotoboyOrdenadas.length - 1;
-
-                        return (
-                          <div
-                            key={rota.id}
-                            className={`stop ${isEntregue ? "delivered" : ""} ${isExpandido ? "expanded" : ""}`}
-                            onClick={() => setRotaCardExpandidaId(isExpandido ? null : rota.id)}
-                          >
-                            <div className="stop-top">
-                              <div>
-                                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5, flexWrap: "wrap" }}>
-                                  <span
-                                    style={{
-                                      background: isEntregue ? "#E2E8F0" : "#F7F3EA",
-                                      color: isEntregue ? "#64748B" : "#8A5300",
-                                      border: isEntregue ? "1px solid #CBD5E1" : "1px solid #FCD34D",
-                                      padding: "2px 8px",
-                                      borderRadius: 12,
-                                      fontSize: 11,
-                                      fontWeight: 700,
-                                    }}
-                                  >
-                                    {numeroParada}ª Parada
-                                  </span>
-
-                                  {rotasMotoboyOrdenadas.length > 1 && (
+                                  {rotasMotoboyPendentes.length > 1 && (
                                     <div
                                       style={{ display: "inline-flex", gap: 3, alignItems: "center" }}
                                       onClick={(e) => e.stopPropagation()}
@@ -3919,7 +3586,7 @@ export default function Home() {
                                         ▼
                                       </button>
                                       <select
-                                        value={indexReal}
+                                        value={indexPendente}
                                         onChange={(e) => reordenarRotaParaPosicao(rota.id, Number(e.target.value))}
                                         style={{
                                           padding: "2px 5px",
@@ -3932,7 +3599,7 @@ export default function Home() {
                                         }}
                                         title="Escolher número da parada"
                                       >
-                                        {rotasMotoboyOrdenadas.map((_, idx) => (
+                                        {rotasMotoboyPendentes.map((_, idx) => (
                                           <option key={idx} value={idx}>
                                             {idx + 1}ª
                                           </option>
@@ -3942,10 +3609,15 @@ export default function Home() {
                                   )}
                                 </div>
                                 <span className="loc">{rota.local_nome}</span>
+                                {rota.local_cliente_nome && (
+                                  <div style={{ fontSize: 12, color: "#6b6558", marginTop: 2 }}>
+                                    👤 {rota.local_cliente_nome}
+                                  </div>
+                                )}
                               </div>
 
-                              <span className={`stamp ${isEntregue ? "ok" : "pend"}`}>
-                                {rota.status}
+                              <span className="stamp pend">
+                                pendente
                               </span>
                             </div>
 
@@ -3959,27 +3631,17 @@ export default function Home() {
                               </span>
                             </div>
 
-                            {rota.carga_conferida ? (
-                              <div style={{ background: "#DCFCE7", color: "#166534", border: "1px solid #86EFAC", borderRadius: 6, padding: "4px 8px", fontSize: 11.5, fontWeight: 600, marginBottom: 8 }}>
-                                ✓ Carga conferida na saída (OK)
-                              </div>
-                            ) : (
-                              <div style={{ background: "#F3F4F6", color: "#4B5563", border: "1px dashed #D1D5DB", borderRadius: 6, padding: "4px 8px", fontSize: 11.5, fontWeight: 500, marginBottom: 8 }}>
-                                ⏳ Pendente de conferência (verifique na aba de Resumo)
-                              </div>
-                            )}
-
                             {/* Dica / Botão de Expansão */}
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: isExpandido ? 10 : 12 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, marginBottom: isExpandido ? 10 : 12 }}>
                               <span className="stop-expand-hint">
-                                {isExpandido ? "▲ Toque para ocultar detalhes" : "▼ Toque para ver endereço e telefone"}
+                                {isExpandido ? "▲ Toque para ocultar endereço e telefone" : "▼ Toque para ver endereço e telefone"}
                               </span>
                               <span style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11, color: "#8a8372" }}>
                                 Passada às {horaPassada}
                               </span>
                             </div>
 
-                            {/* Seção Expandida com Detalhes Completos */}
+                            {/* Seção Expandida com Detalhes Completos (Endereço, GPS, Contato) */}
                             {isExpandido && (
                               <div
                                 className="stop-details-card"
@@ -4113,17 +3775,6 @@ export default function Home() {
                                       {horaPassada}
                                     </span>
                                   </div>
-
-                                  {horaEntregue && (
-                                    <div style={{ textAlign: "right" }}>
-                                      <span className="stop-details-label" style={{ color: "#166534", justifyContent: "flex-end" }}>
-                                        ✓ Entregue às:
-                                      </span>
-                                      <span style={{ fontFamily: "IBM Plex Mono, monospace", fontWeight: 700, fontSize: 12.5, color: "#166534" }}>
-                                        {horaEntregue}
-                                      </span>
-                                    </div>
-                                  )}
                                 </div>
                               </div>
                             )}
@@ -4145,7 +3796,7 @@ export default function Home() {
                                 >
                                   ⏳ Aguardando a Dona Rê despachar a quantidade
                                 </div>
-                              ) : !isEntregue ? (
+                              ) : (
                                 <button
                                   className="btn-delivery-action"
                                   onClick={(e) => {
@@ -4155,20 +3806,286 @@ export default function Home() {
                                 >
                                   <span>✓ CONFIRMAR ENTREGA</span>
                                 </button>
-                              ) : (
-                                <div className="delivered-status-box">
-                                  <span>✓ Entrega Concluída! {horaEntregue ? `(${horaEntregue})` : ""}</span>
-                                  <button
-                                    className="btn-undo-link"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleAlterarStatusRota(rota.id, "pendente");
-                                    }}
-                                  >
-                                    Desfazer
-                                  </button>
-                                </div>
                               )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+
+                {/* 2. ABA: ENTREGAS CONFIRMADAS */}
+                {motoSubTab === "confirmadas" && (
+                  <div className="stop-list">
+                    <div
+                      style={{
+                        background: "#F0FDF4",
+                        border: "1px solid #BBF7D0",
+                        borderRadius: 8,
+                        padding: "10px 12px",
+                        marginBottom: 12,
+                        fontSize: 12.5,
+                        color: "#166534",
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      ✓ <strong>Entregas Confirmadas:</strong> Aqui estão registradas as quentinhas que você já entregou hoje.
+                    </div>
+
+                    {rotasMotoboyConfirmadas.length > 0 && (
+                      <div style={{ position: "relative", marginBottom: 10 }}>
+                        <span
+                          style={{
+                            position: "absolute",
+                            left: 10,
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            color: "#8a8372",
+                            fontSize: 14,
+                            pointerEvents: "none",
+                            lineHeight: 1,
+                          }}
+                        >
+                          🔍
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="Buscar entrega confirmada..."
+                          value={buscaRotasMotoboy}
+                          onChange={(e) => setBuscaRotasMotoboy(e.target.value)}
+                          style={{
+                            width: "100%",
+                            padding: "8px 30px 8px 32px",
+                            fontSize: 13,
+                            border: "1px solid var(--line)",
+                            borderRadius: 6,
+                            background: "#fff",
+                            boxSizing: "border-box",
+                            outline: "none",
+                          }}
+                        />
+                        {buscaRotasMotoboy && (
+                          <button
+                            type="button"
+                            onClick={() => setBuscaRotasMotoboy("")}
+                            style={{
+                              position: "absolute",
+                              right: 8,
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              background: "none",
+                              border: "none",
+                              color: "#8a8372",
+                              cursor: "pointer",
+                              fontSize: 14,
+                              padding: "2px 6px",
+                            }}
+                            title="Limpar pesquisa"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {rotasMotoboyConfirmadas.length === 0 ? (
+                      <div
+                        style={{
+                          textAlign: "center",
+                          padding: "40px 16px",
+                          color: "#8a8372",
+                          background: "#FFFDF9",
+                          border: "1px dashed var(--line)",
+                          borderRadius: 8,
+                        }}
+                      >
+                        Nenhuma entrega confirmada ainda hoje.
+                        <div style={{ fontSize: 12, marginTop: 6, color: "#a89f8d" }}>
+                          Assim que você confirmar as entregas na aba anterior, elas aparecerão aqui automaticamente.
+                        </div>
+                      </div>
+                    ) : rotasConfirmadasExibidas.length === 0 ? (
+                      <div
+                        style={{
+                          textAlign: "center",
+                          padding: "28px 16px",
+                          background: "#FAF7EE",
+                          border: "1px dashed var(--line)",
+                          borderRadius: 8,
+                          color: "#6b6558",
+                          fontSize: 13,
+                          marginBottom: 12,
+                        }}
+                      >
+                        <div>Nenhuma entrega confirmada encontrada para &quot;<strong>{buscaRotasMotoboy}</strong>&quot;.</div>
+                        <button
+                          type="button"
+                          onClick={() => setBuscaRotasMotoboy("")}
+                          style={{
+                            marginTop: 8,
+                            padding: "5px 12px",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            background: "#fff",
+                            border: "1px solid var(--line)",
+                            borderRadius: 6,
+                            cursor: "pointer",
+                            color: "var(--ink)",
+                          }}
+                        >
+                          Limpar pesquisa
+                        </button>
+                      </div>
+                    ) : (
+                      rotasConfirmadasExibidas.map((rota) => {
+                        const isExpandido = rotaCardExpandidaId === rota.id;
+
+                        const horaPassada = rota.criado_em
+                          ? new Date(rota.criado_em).toLocaleTimeString("pt-BR", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "—";
+
+                        const horaEntregue = rota.entregue_em
+                          ? new Date(rota.entregue_em).toLocaleTimeString("pt-BR", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : null;
+
+                        return (
+                          <div
+                            key={rota.id}
+                            className={`stop delivered ${isExpandido ? "expanded" : ""}`}
+                            onClick={() => setRotaCardExpandidaId(isExpandido ? null : rota.id)}
+                          >
+                            <div className="stop-top">
+                              <div>
+                                <span className="loc">{rota.local_nome}</span>
+                                {rota.local_cliente_nome && (
+                                  <div style={{ fontSize: 12, color: "#6b6558", marginTop: 2 }}>
+                                    👤 {rota.local_cliente_nome}
+                                  </div>
+                                )}
+                              </div>
+
+                              <span className="stamp ok">
+                                entregue
+                              </span>
+                            </div>
+
+                            {/* Destaque de Quantidade Entregue */}
+                            <div className="m-qty-badge">
+                              <span>Quantidade entregue:</span>
+                              <span className="num-highlight">{rota.quantidade} un.</span>
+                            </div>
+
+                            {/* Dica / Botão de Expansão */}
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: isExpandido ? 10 : 12 }}>
+                              <span className="stop-expand-hint">
+                                {isExpandido ? "▲ Toque para ocultar detalhes" : "▼ Toque para ver endereço e contato"}
+                              </span>
+                              <span style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11, color: "#166534", fontWeight: 600 }}>
+                                ✓ Entregue {horaEntregue ? `às ${horaEntregue}` : ""}
+                              </span>
+                            </div>
+
+                            {/* Detalhes Expandidos */}
+                            {isExpandido && (
+                              <div
+                                className="stop-details-card"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {rota.local_cliente_nome && (
+                                  <div className="stop-details-field">
+                                    <span className="stop-details-label">
+                                      👤 Quem recebeu:
+                                    </span>
+                                    <div className="stop-details-val" style={{ fontSize: 14, fontWeight: 700, color: "var(--kraft-dark)" }}>
+                                      {rota.local_cliente_nome}
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className="stop-details-field">
+                                  <span className="stop-details-label">
+                                    📍 Endereço de Entrega:
+                                  </span>
+                                  <div className="stop-details-val" style={{ fontSize: 13.5 }}>
+                                    {rota.local_endereco || "Endereço não cadastrado"}
+                                  </div>
+                                  {rota.local_endereco_link ? (
+                                    <a
+                                      href={rota.local_endereco_link}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="btn"
+                                      style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: 6,
+                                        padding: "7px 12px",
+                                        fontSize: 12.5,
+                                        fontWeight: 600,
+                                        marginTop: 8,
+                                        textDecoration: "none",
+                                        background: "var(--route-green)",
+                                        color: "#fff",
+                                        borderRadius: 3,
+                                      }}
+                                    >
+                                      🗺️ Abrir no Maps / Waze
+                                    </a>
+                                  ) : null}
+                                </div>
+
+                                {rota.local_contato && (
+                                  <div className="stop-details-field">
+                                    <span className="stop-details-label">
+                                      📞 Telefone:
+                                    </span>
+                                    <div className="stop-details-val" style={{ fontSize: 13.5 }}>
+                                      {rota.local_contato}
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--line)", paddingTop: 8, marginTop: 8 }}>
+                                  <div>
+                                    <span className="stop-details-label">
+                                      🕒 Passada às:
+                                    </span>
+                                    <span style={{ fontFamily: "IBM Plex Mono, monospace", fontWeight: 600, fontSize: 12.5 }}>
+                                      {horaPassada}
+                                    </span>
+                                  </div>
+
+                                  {horaEntregue && (
+                                    <div style={{ textAlign: "right" }}>
+                                      <span className="stop-details-label" style={{ color: "#166534", justifyContent: "flex-end" }}>
+                                        ✓ Entregue às:
+                                      </span>
+                                      <span style={{ fontFamily: "IBM Plex Mono, monospace", fontWeight: 700, fontSize: 12.5, color: "#166534" }}>
+                                        {horaEntregue}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Box de Confirmação com Opção de Desfazer */}
+                            <div className="delivered-status-box" onClick={(e) => e.stopPropagation()}>
+                              <span>✓ Entrega Concluída! {horaEntregue ? `(${horaEntregue})` : ""}</span>
+                              <button
+                                type="button"
+                                className="btn-undo-link"
+                                onClick={() => handleAlterarStatusRota(rota.id, "pendente")}
+                              >
+                                Desfazer
+                              </button>
                             </div>
                           </div>
                         );
@@ -4179,10 +4096,10 @@ export default function Home() {
 
                 <div className="m-footnote">
                   {motoSubTab === "resumo"
-                    ? "Confira as quentinhas nas placas antes de sair para as rotas"
-                    : rotasMotoboyOrdenadas.length > 0
-                    ? "Toque no botão verde assim que realizar a entrega"
-                    : "Aguardando novos despachos da Dona Rê"}
+                    ? rotasMotoboyPendentes.length > 0
+                      ? "Toque em Confirmar Entrega ao realizar a entrega no cliente"
+                      : "Todas as entregas pendentes foram concluídas!"
+                    : `Total de ${rotasMotoboyConfirmadas.length} entrega(s) confirmada(s) hoje`}
                 </div>
               </div>
             </div>
