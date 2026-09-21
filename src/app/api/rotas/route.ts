@@ -27,9 +27,9 @@ export async function GET(req: Request) {
           select 
             ml.local_id,
             ml.motoboy_id,
-            ml.qtd_padrao,
+            0,
             ${de}::date,
-            (l.valor_unidade * ml.qtd_padrao),
+            0.00,
             m.valor_rota,
             'pendente'
           from motoboy_locais ml

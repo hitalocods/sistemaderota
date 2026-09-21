@@ -185,7 +185,7 @@ export default function Home() {
   // Formulário Nova Rota
   const [novaRotaLocalId, setNovaRotaLocalId] = useState<number | "">("");
   const [novaRotaMotoboyId, setNovaRotaMotoboyId] = useState<number | "">("");
-  const [novaRotaQtd, setNovaRotaQtd] = useState<number>(30);
+  const [novaRotaQtd, setNovaRotaQtd] = useState<number>(0);
   const [criandoRota, setCriandoRota] = useState(false);
 
   // Modais de Criação e Gestão
@@ -200,7 +200,7 @@ export default function Home() {
   const [rotaParaEditar, setRotaParaEditar] = useState<Rota | null>(null);
   const [editRotaLocalId, setEditRotaLocalId] = useState<number | "">("");
   const [editRotaMotoboyId, setEditRotaMotoboyId] = useState<number | "">("");
-  const [editRotaQtd, setEditRotaQtd] = useState<number>(30);
+  const [editRotaQtd, setEditRotaQtd] = useState<number>(0);
   const [salvandoEdicaoRota, setSalvandoEdicaoRota] = useState(false);
 
   // Modal de Exclusão de Rota
@@ -263,12 +263,19 @@ export default function Home() {
   const [despachando, setDespachando] = useState(false);
   const [modalAddLocalCarteira, setModalAddLocalCarteira] = useState<number | null>(null);
   const [addLocalCarteiraId, setAddLocalCarteiraId] = useState<number | "">("");
-  const [addLocalCarteiraQtd, setAddLocalCarteiraQtd] = useState<number>(30);
+  const [addLocalCarteiraQtd, setAddLocalCarteiraQtd] = useState<number>(0);
   const [adicionandoLocalCarteira, setAdicionandoLocalCarteira] = useState(false);
   const [dragItemIdx, setDragItemIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [editQtdId, setEditQtdId] = useState<{ motoboyId: number; localId: number } | null>(null);
-  const [editQtdVal, setEditQtdVal] = useState<number>(30);
+  const [editQtdVal, setEditQtdVal] = useState<number>(0);
+
+  // Modal de Despacho Rápido da Carteira por Motoboy
+  const [modalDespachoMoto, setModalDespachoMoto] = useState<Motoboy | null>(null);
+  const [despachoItens, setDespachoItens] = useState<
+    Array<{ local_id: number; local_nome: string; local_cliente_nome?: string | null; quantidade: number }>
+  >([]);
+  const [salvandoDespachoRapido, setSalvandoDespachoRapido] = useState(false);
 
   // Toast
   const [toast, setToast] = useState<string | null>(null);
@@ -564,7 +571,7 @@ export default function Home() {
   // Ações de Rotas
   async function handleCriarRota(e: React.FormEvent) {
     e.preventDefault();
-    if (!novaRotaLocalId || !novaRotaMotoboyId || !novaRotaQtd) {
+    if (!novaRotaLocalId || !novaRotaMotoboyId || novaRotaQtd === undefined || novaRotaQtd === null || Number(novaRotaQtd) < 0) {
       showToast("Preencha local, motoboy e quantidade!");
       return;
     }
@@ -589,7 +596,7 @@ export default function Home() {
       }
 
       showToast("✓ Rota despachada e sincronizada!");
-      setNovaRotaQtd(30);
+      setNovaRotaQtd(0);
       await carregarTudo(true);
     } catch {
       showToast("Erro de rede ao criar rota");
@@ -639,8 +646,8 @@ export default function Home() {
 
   async function handleSalvarEdicaoRota(e: React.FormEvent) {
     e.preventDefault();
-    if (!rotaParaEditar || !editRotaLocalId || !editRotaMotoboyId || !editRotaQtd) {
-      showToast("Preencha local, motoboy e quantidade!");
+    if (!rotaParaEditar || !editRotaLocalId || !editRotaMotoboyId || editRotaQtd === undefined || editRotaQtd === null || Number(editRotaQtd) < 0) {
+      showToast("Preencha local, motoboy e quantidade válida!");
       return;
     }
 
@@ -1253,20 +1260,116 @@ export default function Home() {
 
   // ── Carteira: handlers ──────────────────────────────────────────────────────
 
-  async function carregarCarteira(motoboyId: number) {
+  async function carregarCarteira(motoboyId: number): Promise<MotoboyLocal[]> {
     try {
       setCarregandoCarteira(motoboyId);
       const res = await fetch(`/api/motoboys/${motoboyId}/locais`);
       const data = await res.json();
       if (!res.ok) {
         showToast(data.error || "Erro ao carregar carteira");
-        return;
+        return [];
       }
       setCarteiras((prev) => ({ ...prev, [motoboyId]: data }));
+      return data;
     } catch {
       showToast("Erro ao carregar carteira");
+      return [];
     } finally {
       setCarregandoCarteira(null);
+    }
+  }
+
+  // ── Edição Rápida Direta na Tabela de Rotas ─────────────────────────────────
+  async function handleAtualizarQtdRapida(rotaId: number, novaQtd: number) {
+    const qtdNum = Math.max(0, Number(novaQtd) || 0);
+    // Atualização otimista local imediata
+    setRotas((prev) =>
+      prev.map((r) => (r.id === rotaId ? { ...r, quantidade: qtdNum } : r))
+    );
+
+    try {
+      const res = await fetch(`/api/rotas/${rotaId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quantidade: qtdNum }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        showToast(err.error || "Erro ao atualizar quantidade");
+        await carregarTudo(true);
+        return;
+      }
+      showToast("✓ Quantidade salva!");
+      await carregarTudo(true);
+    } catch {
+      showToast("Erro de rede ao salvar quantidade");
+      await carregarTudo(true);
+    }
+  }
+
+  // ── Modal de Despacho Rápido por Motoboy ────────────────────────────────────
+  async function handleAbrirModalDespacho(moto: Motoboy) {
+    let itensCarteira = carteiras[moto.id];
+    if (!itensCarteira) {
+      itensCarteira = await carregarCarteira(moto.id);
+    }
+    if (!itensCarteira || itensCarteira.length === 0) {
+      showToast(`A carteira de ${moto.nome} está vazia. Adicione locais primeiro!`);
+      return;
+    }
+
+    // Procura rotas já existentes no dia para pré-carregar as quantidades
+    const itensPreenchidos = itensCarteira.map((item) => {
+      const rotaExistente = rotas.find(
+        (r) =>
+          r.motoboy_id === moto.id &&
+          r.local_id === item.local_id &&
+          r.data.slice(0, 10) === dataFiltro
+      );
+      return {
+        local_id: item.local_id,
+        local_nome: item.local_nome,
+        local_cliente_nome: item.local_cliente_nome,
+        quantidade: rotaExistente !== undefined ? rotaExistente.quantidade : 0,
+      };
+    });
+
+    setDespachoItens(itensPreenchidos);
+    setModalDespachoMoto(moto);
+  }
+
+  async function handleConfirmarDespachoRapido() {
+    if (!modalDespachoMoto) return;
+    try {
+      setSalvandoDespachoRapido(true);
+      const res = await fetch("/api/rotas/despachar-carteiras", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          data: dataFiltro,
+          motoboy_id: modalDespachoMoto.id,
+          itens: despachoItens.map((i) => ({
+            local_id: i.local_id,
+            quantidade: Math.max(0, Number(i.quantidade) || 0),
+          })),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || "Erro ao despachar");
+        return;
+      }
+
+      const totalQtd = despachoItens.reduce((acc, curr) => acc + (Number(curr.quantidade) || 0), 0);
+      showToast(`✓ Despacho de ${modalDespachoMoto.nome} salvo com sucesso (${totalQtd} quentinhas)!`);
+      setModalDespachoMoto(null);
+      await carregarTudo(true);
+    } catch {
+      showToast("Erro de rede ao salvar despacho");
+    } finally {
+      setSalvandoDespachoRapido(false);
     }
   }
 
@@ -1284,7 +1387,7 @@ export default function Home() {
       showToast("✓ Local adicionado à carteira!");
       setModalAddLocalCarteira(null);
       setAddLocalCarteiraId("");
-      setAddLocalCarteiraQtd(30);
+      setAddLocalCarteiraQtd(0);
       await carregarCarteira(motoboyId);
       await carregarTudo(true);
     } catch {
@@ -1368,7 +1471,7 @@ export default function Home() {
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error || "Erro ao despachar"); return; }
-      showToast(`✓ ${data.criadas} rota(s) despachada(s) para ${dataFiltro.split("-").reverse().join("/")}!`);
+      showToast(`✓ ${data.criadas} rota(s) inicializada(s) para ${dataFiltro.split("-").reverse().join("/")}!`);
       await carregarTudo(true);
     } catch {
       showToast("Erro de rede ao despachar");
@@ -2151,7 +2254,7 @@ export default function Home() {
                             <label>Quantidade de quentinhas</label>
                             <input
                               type="number"
-                              min="1"
+                              min="0"
                               value={novaRotaQtd}
                               onChange={(e) => setNovaRotaQtd(parseInt(e.target.value) || 0)}
                               required
@@ -2287,7 +2390,38 @@ export default function Home() {
                                     </td>
                                     <td data-label="Motoboy">{rota.motoboy_nome}</td>
                                     <td data-label="Quantidade" className="num">
-                                      <div><strong>{rota.quantidade} un.</strong></div>
+                                      <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          defaultValue={rota.quantidade}
+                                          key={`rota-qtd-${rota.id}-${rota.quantidade}`}
+                                          onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                              (e.target as HTMLInputElement).blur();
+                                            }
+                                          }}
+                                          onBlur={(e) => {
+                                            const val = parseInt(e.target.value) || 0;
+                                            if (val !== rota.quantidade) {
+                                              handleAtualizarQtdRapida(rota.id, val);
+                                            }
+                                          }}
+                                          style={{
+                                            width: 58,
+                                            textAlign: "center",
+                                            fontWeight: 700,
+                                            fontSize: 13,
+                                            padding: "3px 4px",
+                                            borderRadius: 5,
+                                            border: rota.quantidade === 0 ? "1.5px dashed #F59E0B" : "1px solid var(--line)",
+                                            background: rota.quantidade === 0 ? "#FEF3C7" : "#fff",
+                                            color: rota.quantidade === 0 ? "#B45309" : "var(--ink)",
+                                          }}
+                                          title={rota.quantidade === 0 ? "Aguardando preenchimento da Dona Rê (0 un.)" : "Clique ou aperte Enter para alterar a quantidade"}
+                                        />
+                                        <span style={{ fontSize: 11, color: "#7a7364" }}>un.</span>
+                                      </div>
                                       <div style={{ marginTop: 3 }}>
                                         {rota.carga_conferida ? (
                                           <span
@@ -2665,6 +2799,15 @@ export default function Home() {
                                 <button
                                   type="button"
                                   className="btn-secondary"
+                                  style={{ fontSize: 11, background: "#FFF8EC", borderColor: "var(--kraft)", color: "var(--kraft-dark)", fontWeight: 700 }}
+                                  onClick={() => handleAbrirModalDespacho(moto)}
+                                  title={`Despacho diário de ${moto.nome}`}
+                                >
+                                  🚀 Despachar
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-secondary"
                                   style={{ fontSize: 11, background: carteiraAberta ? "var(--paper-alt)" : "#fff", fontWeight: 600 }}
                                   onClick={async () => {
                                     if (carteiraAberta) {
@@ -2705,15 +2848,16 @@ export default function Home() {
                                     <button
                                       className="btn-secondary"
                                       style={{ fontSize: 11 }}
-                                      onClick={() => { setModalAddLocalCarteira(moto.id); setAddLocalCarteiraId(""); setAddLocalCarteiraQtd(30); }}
+                                      onClick={() => { setModalAddLocalCarteira(moto.id); setAddLocalCarteiraId(""); setAddLocalCarteiraQtd(0); }}
                                     >+ Adicionar local</button>
                                     <button
                                       className="btn"
                                       style={{ fontSize: 11, background: "var(--kraft)", borderColor: "var(--kraft)" }}
                                       disabled={despachando || itens.length === 0}
-                                      onClick={() => handleDespacharCarteira(moto.id)}
+                                      onClick={() => handleAbrirModalDespacho(moto)}
+                                      title="Abrir formulário de despacho do dia para preencher as quantidades"
                                     >
-                                      {despachando ? "..." : `🚀 Despachar (${dataFiltro.split("-").reverse().slice(0,2).join("/")})`}
+                                      {`🚀 Despachar (${dataFiltro.split("-").reverse().slice(0,2).join("/")})`}
                                     </button>
                                   </div>
                                 </div>
@@ -3384,13 +3528,19 @@ export default function Home() {
                               </span>
                             </div>
 
-                            <div className="carga-qty-display">
+                            <div className="carga-qty-display" style={rota.quantidade === 0 ? { background: "#FEF3C7", borderColor: "#FDE68A" } : undefined}>
                               <div>
-                                <div style={{ fontSize: 11, color: "#7a7364", textTransform: "uppercase", fontWeight: 600 }}>
-                                  Quantidade despachada
+                                <div style={{ fontSize: 11, color: rota.quantidade === 0 ? "#92400E" : "#7a7364", textTransform: "uppercase", fontWeight: 700 }}>
+                                  {rota.quantidade === 0 ? "Status da Cozinha" : "Quantidade despachada"}
                                 </div>
-                                <div className="carga-qty-num">
-                                  {rota.quantidade} <span style={{ fontSize: 14, fontWeight: 500, color: "#7a7364" }}>quentinhas</span>
+                                <div className="carga-qty-num" style={rota.quantidade === 0 ? { color: "#B45309", fontSize: 15 } : undefined}>
+                                  {rota.quantidade === 0 ? (
+                                    <span>⏳ Aguardando quentinhas da cozinha</span>
+                                  ) : (
+                                    <>
+                                      {rota.quantidade} <span style={{ fontSize: 14, fontWeight: 500, color: "#7a7364" }}>quentinhas</span>
+                                    </>
+                                  )}
                                 </div>
                               </div>
                               {isConferido && (
@@ -3412,7 +3562,22 @@ export default function Home() {
 
                             {/* Botão de Confirmação OK */}
                             <div style={{ marginTop: 10 }}>
-                              {!isConferido ? (
+                              {rota.quantidade === 0 ? (
+                                <div
+                                  style={{
+                                    padding: "10px 12px",
+                                    background: "#FFFBEB",
+                                    border: "1px dashed #FCD34D",
+                                    borderRadius: 6,
+                                    textAlign: "center",
+                                    fontSize: 12.5,
+                                    color: "#92400E",
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  ⏳ Aguardando a Dona Rê despachar a quantidade desta parada
+                                </div>
+                              ) : !isConferido ? (
                                 <button
                                   type="button"
                                   className="btn"
@@ -3737,10 +3902,12 @@ export default function Home() {
                             </div>
 
                             {/* Destaque de Quantidade */}
-                            <div className="m-qty-badge">
-                              <span>Quantidade para entrega:</span>
-                              <span className="num-highlight">
-                                {rota.quantidade} un.
+                            <div className="m-qty-badge" style={rota.quantidade === 0 ? { background: "#FEF3C7", borderColor: "#FDE68A" } : undefined}>
+                              <span style={rota.quantidade === 0 ? { color: "#92400E", fontWeight: 700 } : undefined}>
+                                {rota.quantidade === 0 ? "Status:" : "Quantidade para entrega:"}
+                              </span>
+                              <span className="num-highlight" style={rota.quantidade === 0 ? { color: "#B45309", fontSize: 13 } : undefined}>
+                                {rota.quantidade === 0 ? "⏳ Aguardando quentinhas da cozinha" : `${rota.quantidade} un.`}
                               </span>
                             </div>
 
@@ -3915,7 +4082,22 @@ export default function Home() {
 
                             {/* Botão de Entrega */}
                             <div onClick={(e) => e.stopPropagation()}>
-                              {!isEntregue ? (
+                              {rota.quantidade === 0 ? (
+                                <div
+                                  style={{
+                                    padding: "9px 12px",
+                                    background: "#FFFBEB",
+                                    border: "1px dashed #FCD34D",
+                                    borderRadius: 6,
+                                    textAlign: "center",
+                                    fontSize: 12,
+                                    color: "#92400E",
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  ⏳ Aguardando a Dona Rê despachar a quantidade
+                                </div>
+                              ) : !isEntregue ? (
                                 <button
                                   className="btn-delivery-action"
                                   onClick={(e) => {
@@ -4265,6 +4447,136 @@ export default function Home() {
         </div>
       )}
 
+      {/* Modal: Despacho Rápido da Carteira por Motoboy */}
+      {modalDespachoMoto && (
+        <div className="modal-overlay" onClick={() => setModalDespachoMoto(null)}>
+          <div
+            className="modal-box"
+            style={{ maxWidth: 540, maxHeight: "90vh", display: "flex", flexDirection: "column" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header-row" style={{ borderBottom: "1px solid var(--line)", paddingBottom: 12 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 16 }}>🚀 Despacho Diário — {modalDespachoMoto.nome}</h3>
+                <div style={{ fontSize: 12, color: "#6b6558", marginTop: 2 }}>
+                  Data: <strong>{dataFiltro.split("-").reverse().join("/")}</strong> • {despachoItens.length} paradas na carteira
+                </div>
+              </div>
+              <button
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18 }}
+                onClick={() => setModalDespachoMoto(null)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ padding: "10px 0 6px 0", fontSize: 12, color: "#8a8372" }}>
+              Preencha a quantidade de quentinhas para cada local hoje. (Locais com <strong>0</strong> permanecem na rota aguardando despacho).
+            </div>
+
+            <div style={{ flex: 1, overflowY: "auto", paddingRight: 4, display: "flex", flexDirection: "column", gap: 6, margin: "6px 0 14px 0" }}>
+              {despachoItens.map((item, idx) => (
+                <div
+                  key={item.local_id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    padding: "8px 12px",
+                    background: item.quantidade > 0 ? "#F0FDF4" : "#FAF7F0",
+                    border: item.quantidade > 0 ? "1px solid #BBF7D0" : "1px solid var(--line)",
+                    borderRadius: 6,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--kraft)", minWidth: 20 }}>
+                      {idx + 1}ª
+                    </span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {item.local_nome}
+                      </div>
+                      {item.local_cliente_nome && (
+                        <div style={{ fontSize: 11, color: "#6b6558" }}>
+                          👤 {item.local_cliente_nome}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <input
+                      type="number"
+                      min="0"
+                      value={item.quantidade}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value) || 0;
+                        setDespachoItens((prev) =>
+                          prev.map((it, i) => (i === idx ? { ...it, quantidade: val } : it))
+                        );
+                      }}
+                      style={{
+                        width: 64,
+                        textAlign: "center",
+                        padding: "6px 8px",
+                        fontSize: 14,
+                        fontWeight: 700,
+                        borderRadius: 6,
+                        border: item.quantidade > 0 ? "1.5px solid #16A34A" : "1px solid var(--line)",
+                        background: "#fff",
+                      }}
+                    />
+                    <span style={{ fontSize: 12, color: "#6b6558" }}>un.</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Totalizador e Rodapé */}
+            <div
+              style={{
+                borderTop: "1px solid var(--line)",
+                paddingTop: 12,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: 10,
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 11, color: "#6b6558", textTransform: "uppercase" }}>Total Despachado</div>
+                <div style={{ fontSize: 17, fontWeight: 800, color: "var(--route-green)" }}>
+                  {despachoItens.reduce((acc, curr) => acc + (Number(curr.quantidade) || 0), 0)}{" "}
+                  <span style={{ fontSize: 12, fontWeight: 500, color: "#6b6558" }}>quentinhas</span>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setModalDespachoMoto(null)}
+                  disabled={salvandoDespachoRapido}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ background: "var(--route-green)", borderColor: "var(--route-green)" }}
+                  disabled={salvandoDespachoRapido}
+                  onClick={handleConfirmarDespachoRapido}
+                >
+                  {salvandoDespachoRapido ? "Salvando..." : "🚀 Confirmar Despacho"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal: Confirmar Exclusão */}
       {modalConfirmDelete && (
         <div className="modal-overlay" onClick={() => setModalConfirmDelete(null)}>
@@ -4353,7 +4665,7 @@ export default function Home() {
                 <label>Quantidade de quentinhas</label>
                 <input
                   type="number"
-                  min="1"
+                  min="0"
                   value={editRotaQtd}
                   onChange={(e) => setEditRotaQtd(parseInt(e.target.value) || 0)}
                   required

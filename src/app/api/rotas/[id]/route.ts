@@ -119,8 +119,8 @@ export async function PUT(
     const novaQuantidade = quantidade !== undefined ? Number(quantidade) : rotaAtual.quantidade;
     const novoStatus = status || rotaAtual.status;
 
-    if (novaQuantidade <= 0) {
-      return NextResponse.json({ error: "Quantidade deve ser maior que zero" }, { status: 400 });
+    if (novaQuantidade < 0) {
+      return NextResponse.json({ error: "Quantidade não pode ser negativa" }, { status: 400 });
     }
 
     const [local] = await sql`select valor_unidade from locais where id = ${novoLocalId}`;
