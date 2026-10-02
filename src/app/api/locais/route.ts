@@ -7,7 +7,11 @@ export async function GET() {
     where coalesce(excluido, false) = false
     order by nome asc
   `;
-  return NextResponse.json(locais);
+  return NextResponse.json(locais, {
+    headers: {
+      "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+    },
+  });
 }
 
 export async function POST(req: Request) {

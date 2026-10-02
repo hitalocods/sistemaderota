@@ -552,16 +552,96 @@ export default function Home() {
     }
   }
 
-  // Polling em tempo real a cada 4 segundos
+  // Polling em tempo real com blindagem contra abas inativas e timeout de ociosidade
   useEffect(() => {
-    if (usuario) {
-      carregarTudo();
-      const interval = setInterval(() => {
+    if (!usuario) return;
+
+    let lastInteraction = Date.now();
+    const MAX_IDLE_MS = 15 * 60 * 1000; // 15 minutos sem interação pausa o polling automático
+
+    function handleActivity() {
+      const wasIdle = Date.now() - lastInteraction > MAX_IDLE_MS;
+      lastInteraction = Date.now();
+      if (wasIdle && typeof document !== "undefined" && !document.hidden) {
         carregarTudo(true);
-      }, 4000);
-      return () => clearInterval(interval);
+      }
     }
+
+    function handleVisibilityChange() {
+      if (typeof document !== "undefined" && !document.hidden) {
+        lastInteraction = Date.now();
+        carregarTudo(true);
+      }
+    }
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("mousemove", handleActivity, { passive: true });
+      window.addEventListener("keydown", handleActivity, { passive: true });
+      window.addEventListener("touchstart", handleActivity, { passive: true });
+      window.addEventListener("scroll", handleActivity, { passive: true });
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+    }
+
+    carregarTudo();
+
+    const interval = setInterval(() => {
+      // Blindagem: pausa imediata se a aba do navegador estiver oculta/minimizada
+      if (typeof document !== "undefined" && document.hidden) return;
+
+      // Blindagem: pausa se o usuário estiver inativo por mais de 15 minutos
+      if (Date.now() - lastInteraction > MAX_IDLE_MS) return;
+
+      carregarTudo(true);
+    }, 4000);
+
+    return () => {
+      clearInterval(interval);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("mousemove", handleActivity);
+        window.removeEventListener("keydown", handleActivity);
+        window.removeEventListener("touchstart", handleActivity);
+        window.removeEventListener("scroll", handleActivity);
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      }
+    };
   }, [usuario, dataFiltro]);
+
+  // Blindagem de polling para verificação de pagamento PIX com timeout máximo de 15 minutos
+  useEffect(() => {
+    if (!dadosPixModal) return;
+
+    const startTime = Date.now();
+    const MAX_PIX_POLL_MS = 15 * 60 * 1000; // 15 minutos de timeout máximo
+
+    const interval = setInterval(async () => {
+      // 1. Pausa se a aba estiver em segundo plano
+      if (typeof document !== "undefined" && document.hidden) return;
+
+      // 2. Trava de segurança: encerra após 15 minutos caso o modal seja esquecido aberto
+      if (Date.now() - startTime > MAX_PIX_POLL_MS) {
+        clearInterval(interval);
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/assinatura");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.assinatura) {
+            setAssinatura(data.assinatura);
+            if (data.assinatura.status === "ativo" && !data.assinatura.bloqueado) {
+              setDadosPixModal(null);
+              showToast("✓ Pagamento Pix confirmado com sucesso! Sistema liberado.");
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Erro na verificação de pagamento Pix:", err);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [dadosPixModal]);
 
   useEffect(() => {
     if (usuario) {

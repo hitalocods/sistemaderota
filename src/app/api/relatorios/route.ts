@@ -65,7 +65,14 @@ export async function GET(req: Request) {
       order by r.data asc
     `;
 
-    return NextResponse.json({ itens, por_dia: porDia });
+    return NextResponse.json(
+      { itens, por_dia: porDia },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+        },
+      }
+    );
   }
 
   // ── MODO RELATÓRIO GERAL (padrão) ─────────────────────────────────────────
@@ -130,16 +137,23 @@ export async function GET(req: Request) {
     order by r.data desc, r.entregue_em desc, r.id desc
   `;
 
-  return NextResponse.json({
-    por_motoboy: porMotoboy,
-    por_local: porLocal,
-    rotas_detalhadas: rotasDetalhadas,
-    financeiro: {
-      quentinhas_total: Number(financeiro?.quentinhas_total || 0),
-      rotas_total: Number(financeiro?.rotas_total || 0),
-      receita: Number(financeiro?.receita_total || 0),
-      custo: Number(financeiro?.custo_total || 0),
-      saldo: Number(financeiro?.receita_total || 0) - Number(financeiro?.custo_total || 0),
+  return NextResponse.json(
+    {
+      por_motoboy: porMotoboy,
+      por_local: porLocal,
+      rotas_detalhadas: rotasDetalhadas,
+      financeiro: {
+        quentinhas_total: Number(financeiro?.quentinhas_total || 0),
+        rotas_total: Number(financeiro?.rotas_total || 0),
+        receita: Number(financeiro?.receita_total || 0),
+        custo: Number(financeiro?.custo_total || 0),
+        saldo: Number(financeiro?.receita_total || 0) - Number(financeiro?.custo_total || 0),
+      },
     },
-  });
+    {
+      headers: {
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+      },
+    }
+  );
 }

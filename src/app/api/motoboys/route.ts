@@ -13,7 +13,11 @@ export async function GET() {
     group by m.id, m.nome, m.login, m.whatsapp, m.valor_rota, m.ativo, m.criado_em
     order by m.nome asc
   `;
-  return NextResponse.json(motoboys);
+  return NextResponse.json(motoboys, {
+    headers: {
+      "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+    },
+  });
 }
 
 export async function POST(req: Request) {

@@ -59,7 +59,11 @@ export async function GET(req: Request) {
       order by r.data desc, coalesce(ml.ordem, 999999) asc, r.id asc
     `;
 
-    return NextResponse.json(rotas);
+    return NextResponse.json(rotas, {
+      headers: {
+        "Cache-Control": "public, s-maxage=3, stale-while-revalidate=10",
+      },
+    });
   } catch (error) {
     console.error("Erro ao listar rotas:", error);
     return NextResponse.json({ error: "Falha ao carregar rotas" }, { status: 500 });

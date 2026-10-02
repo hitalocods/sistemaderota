@@ -31,7 +31,11 @@ export async function GET(
         and coalesce(l.excluido, false) = false
       order by ml.ordem asc, ml.criado_em asc
     `;
-    return NextResponse.json(locais);
+    return NextResponse.json(locais, {
+      headers: {
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+      },
+    });
   } catch (error) {
     console.error("Erro ao listar carteira:", error);
     return NextResponse.json({ error: "Falha ao carregar carteira" }, { status: 500 });

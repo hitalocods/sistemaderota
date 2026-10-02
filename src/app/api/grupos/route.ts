@@ -29,7 +29,11 @@ export async function GET() {
       order by g.nome asc
     `;
 
-    return NextResponse.json(grupos);
+    return NextResponse.json(grupos, {
+      headers: {
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+      },
+    });
   } catch (error) {
     console.error("Erro ao listar grupos:", error);
     return NextResponse.json({ error: "Falha ao carregar grupos" }, { status: 500 });
