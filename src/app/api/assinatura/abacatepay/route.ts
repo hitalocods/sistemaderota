@@ -86,6 +86,16 @@ export async function POST(req: Request) {
     const checkoutData = await checkoutRes.json();
 
     if (checkoutData?.success && checkoutData.data?.url) {
+      // Salva o link e ID de checkout para rastreio
+      await sql`
+        update assinaturas
+        set 
+          pagbank_id = ${checkoutData.data.id},
+          link_pagamento = ${checkoutData.data.url},
+          atualizado_em = now()
+        where id = (select id from assinaturas order by id asc limit 1)
+      `;
+
       return NextResponse.json({
         success: true,
         tipo: "link_checkout",

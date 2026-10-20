@@ -21,25 +21,41 @@ export async function POST(req: Request) {
     console.log("[Assinatura Webhook] Notificação recebida:", JSON.stringify(data, null, 2));
 
     // Identificação de eventos AbacatePay ou PagBank
-    const eventName = data?.event || "";
-    const billStatus = data?.data?.status || data?.status || data?.charges?.[0]?.status;
+    const eventName = String(data?.event || "").toLowerCase();
+    const rawBillStatus = String(
+      data?.data?.status ||
+      data?.status ||
+      data?.charges?.[0]?.status ||
+      ""
+    ).toUpperCase();
     const transacaoId = data?.data?.id || data?.id || data?.charges?.[0]?.id;
 
-    // AbacatePay: event === 'billing.paid' ou data.status === 'PAID'
+    // AbacatePay: transparent.completed, checkout.completed, billing.paid ou status PAID / COMPLETED
     // PagBank: charges[0].status === 'PAID' ou status === 'PAID'
     const isPago =
+      eventName === "transparent.completed" ||
+      eventName === "checkout.completed" ||
       eventName === "billing.paid" ||
-      billStatus === "PAID" ||
-      billStatus === "AUTHORIZED" ||
       eventName === "charges.paid" ||
-      eventName === "subscription.paid";
+      eventName === "subscription.paid" ||
+      eventName.endsWith(".completed") ||
+      eventName.endsWith(".paid") ||
+      rawBillStatus === "PAID" ||
+      rawBillStatus === "COMPLETED" ||
+      rawBillStatus === "AUTHORIZED";
 
     const isFalha =
+      eventName === "transparent.refunded" ||
+      eventName === "transparent.disputed" ||
+      eventName === "transparent.lost" ||
       eventName === "billing.failed" ||
       eventName === "billing.refunded" ||
-      billStatus === "DECLINED" ||
-      billStatus === "CANCELED" ||
-      eventName === "charges.failed";
+      eventName === "checkout.expired" ||
+      eventName === "charges.failed" ||
+      rawBillStatus === "DECLINED" ||
+      rawBillStatus === "CANCELED" ||
+      rawBillStatus === "EXPIRED" ||
+      rawBillStatus === "REFUNDED";
 
     if (isPago) {
       // Renova a licença por mais 30 dias
@@ -68,7 +84,7 @@ export async function POST(req: Request) {
       console.log("[Assinatura Webhook] Status atualizado para pendente.");
     }
 
-    return NextResponse.json({ received: true, status: billStatus || eventName });
+    return NextResponse.json({ received: true, status: rawBillStatus || eventName });
   } catch (error) {
     console.error("[Assinatura Webhook] Erro ao processar notificação:", error);
     return NextResponse.json({ received: true, error: "Erro interno no processamento" });

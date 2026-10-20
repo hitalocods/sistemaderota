@@ -19,7 +19,56 @@ export async function GET() {
       return NextResponse.json({ assinatura: formatarAssinatura(inserted[0]) });
     }
 
-    const assinatura = formatarAssinatura(rows[0]);
+    let row = rows[0];
+    const agora = new Date();
+    const venceEm = new Date(row.vence_em);
+    const expiradoOuTolerancia = agora > venceEm || row.status !== "ativo";
+
+    // Se estiver expirado ou pendente, faz checagem direta de segurança com AbacatePay
+    if (expiradoOuTolerancia && process.env.ABACATEPAY_API_KEY) {
+      try {
+        const apiKey = process.env.ABACATEPAY_API_KEY.trim();
+        const abacateRes = await fetch("https://api.abacatepay.com/v2/transparents/list?limit=5", {
+          headers: { Authorization: `Bearer ${apiKey}` },
+          signal: AbortSignal.timeout(3500),
+        });
+        const abacateData = await abacateRes.json();
+        if (abacateData?.success && Array.isArray(abacateData.data)) {
+          const ultimoPago = abacateData.data.find((c: any) => {
+            const st = String(c.status || "").toUpperCase();
+            if (st !== "PAID" && st !== "COMPLETED") return false;
+            const pagoEmDb = row.pago_em ? new Date(row.pago_em).getTime() : 0;
+            const updatedPix = new Date(c.updatedAt || c.createdAt).getTime();
+            return updatedPix > pagoEmDb || c.id === row.pagbank_id;
+          });
+
+          if (ultimoPago) {
+            console.log("[Assinatura] Pagamento recente detectado no AbacatePay via API:", ultimoPago.id);
+            const updatedRows = await sql`
+              update assinaturas
+              set 
+                status = 'ativo',
+                pagbank_id = ${ultimoPago.id},
+                pago_em = now(),
+                vence_em = case 
+                  when vence_em > now() then vence_em + interval '30 days'
+                  else now() + interval '30 days'
+                end,
+                atualizado_em = now()
+              where id = ${row.id}
+              returning *
+            `;
+            if (updatedRows.length > 0) {
+              row = updatedRows[0];
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[Assinatura] Falha na checagem direta com AbacatePay:", err);
+      }
+    }
+
+    const assinatura = formatarAssinatura(row);
     return NextResponse.json({ assinatura });
   } catch (error) {
     console.error("Erro ao carregar status da assinatura:", error);
