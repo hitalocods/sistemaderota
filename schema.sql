@@ -58,6 +58,7 @@ create table if not exists assinaturas (
   link_pagamento      text,                          -- Link do PagBank para ela assinar / atualizar cartão
   pago_em             timestamptz default now(),     -- Último pagamento aprovado
   vence_em            timestamptz not null default (now() + interval '30 days'),
+  dia_vencimento      integer not null default 15,   -- Dia do mês fixo para vencimento
   dias_tolerancia     integer not null default 3,
   criado_em           timestamptz not null default now(),
   atualizado_em       timestamptz not null default now()

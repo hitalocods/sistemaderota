@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
+import { calcularProximoVencimento } from "@/lib/assinatura";
 
 export const dynamic = "force-dynamic";
 
@@ -58,21 +59,28 @@ export async function POST(req: Request) {
       rawBillStatus === "REFUNDED";
 
     if (isPago) {
-      // Renova a licença por mais 30 dias
+      // Busca a assinatura atual para calcular o próximo vencimento baseado no dia 15
+      const rows = await sql`
+        select id, vence_em, dia_vencimento from assinaturas order by id asc limit 1
+      `;
+      const assinaturaAtual = rows[0];
+      const proximoVencimento = calcularProximoVencimento(
+        assinaturaAtual?.vence_em,
+        assinaturaAtual?.dia_vencimento || 15
+      );
+
+      // Renova a licença com vencimento fixado no dia 15
       await sql`
         update assinaturas
         set 
           status = 'ativo',
           pagbank_id = coalesce(${transacaoId ?? null}, pagbank_id),
           pago_em = now(),
-          vence_em = case 
-            when vence_em > now() then vence_em + interval '30 days'
-            else now() + interval '30 days'
-          end,
+          vence_em = ${proximoVencimento}::timestamptz,
           atualizado_em = now()
         where id = (select id from assinaturas order by id asc limit 1)
       `;
-      console.log(`[Assinatura Webhook] Pagamento Aprovado (${transacaoId || "sem id"})! Sistema liberado e renovado por +30 dias.`);
+      console.log(`[Assinatura Webhook] Pagamento Aprovado (${transacaoId || "sem id"})! Sistema liberado e renovado até ${proximoVencimento}.`);
     } else if (isFalha) {
       await sql`
         update assinaturas

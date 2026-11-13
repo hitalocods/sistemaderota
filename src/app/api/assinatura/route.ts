@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { sql } from "@/lib/db";
+import { calcularProximoVencimento } from "@/lib/assinatura";
 
 export const dynamic = "force-dynamic";
 
@@ -44,16 +45,14 @@ export async function GET() {
 
           if (ultimoPago) {
             console.log("[Assinatura] Pagamento recente detectado no AbacatePay via API:", ultimoPago.id);
+            const proximoVencimento = calcularProximoVencimento(row.vence_em, row.dia_vencimento || 15);
             const updatedRows = await sql`
               update assinaturas
               set 
                 status = 'ativo',
                 pagbank_id = ${ultimoPago.id},
                 pago_em = now(),
-                vence_em = case 
-                  when vence_em > now() then vence_em + interval '30 days'
-                  else now() + interval '30 days'
-                end,
+                vence_em = ${proximoVencimento}::timestamptz,
                 atualizado_em = now()
               where id = ${row.id}
               returning *
@@ -82,7 +81,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { link_pagamento, dias_tolerancia, valor_mensal, status } = body;
+    const { link_pagamento, dias_tolerancia, valor_mensal, status, dia_vencimento } = body;
 
     const rows = await sql`
       update assinaturas
@@ -90,6 +89,7 @@ export async function POST(req: Request) {
         link_pagamento = coalesce(${link_pagamento ?? null}, link_pagamento),
         dias_tolerancia = coalesce(${dias_tolerancia ? Number(dias_tolerancia) : null}, dias_tolerancia),
         valor_mensal = coalesce(${valor_mensal ? Number(valor_mensal) : null}, valor_mensal),
+        dia_vencimento = coalesce(${dia_vencimento ? Number(dia_vencimento) : null}, dia_vencimento),
         status = coalesce(${status ?? null}, status),
         atualizado_em = now()
       where id = (select id from assinaturas order by id asc limit 1)
@@ -146,6 +146,7 @@ function formatarAssinatura(row: any) {
     id: row.id,
     cliente_nome: row.cliente_nome,
     valor_mensal: Number(row.valor_mensal || 85.0),
+    dia_vencimento: Number(row.dia_vencimento || 15),
     status: statusCalculado,
     bloqueado: expirado,
     em_tolerancia: emTolerancia,
